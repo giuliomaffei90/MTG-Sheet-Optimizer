@@ -31,7 +31,11 @@ build.sh           compila app e icona; scripts/build_dev_mac.sh ricompila e ril
   tela e moltiplicata per quell'alpha: niente ritagli, niente bande.
 - **Slot**: centro in pixel di pagina più rotazione oraria, agganciata a 45° e normalizzata tra 0 e 359.
   Nei file JSON dei layout `cx` e `cy` sono frazioni della pagina.
-- **Fogli**: A4 2162 × 3183 px, 6 slot; A3 3193 × 4633 px, 14 slot.
+- **Fogli**: A4 2162 × 3183 px, 6 slot; A3 3193 × 4633 px, 14 slot. Non sono fogli A4/A3 interi: sono
+  l'area stampabile di **Print then Cut** della Cricut (7,2 × 10,62 pollici su A4, 10,64 × 15,44 su A3) e
+  gli angoli a gradini dei PNG di sfondo sono lo spazio riservato ai segni di registro. Lo sfondo
+  trasparente attorno alle carte è la linea lungo cui taglia Design Space: per questo l'uscita è PNG con
+  alpha e non JPEG.
 - **Retri**: ogni retro sta alla x specchiata (`pageWidth - cx`) con rotazione invertita (`360 - rot`).
   È la stampa fronte-retro sul lato lungo: così il retro è dritto quando giri la carta tagliata.
 - **Piano dei fogli** (`planSheets` in `Render.swift`): con *Pagine fronte/retro* le facce anteriori delle

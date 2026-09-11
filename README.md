@@ -1,7 +1,12 @@
 # MTG Sheet Optimizer
 
-A macOS app that takes a Magic: The Gathering deck from a plain text list to A4 or A3 sheets ready to
-print and cut. Every file it writes is a transparent PNG at **300 DPI**.
+A macOS app that takes a Magic: The Gathering deck from a plain text list to sheets ready for a **Cricut
+Print then Cut** job. Every file it writes is a transparent PNG at **300 DPI**.
+
+The sheets are laid out for Cricut's Print then Cut printable area, not for plain A4/A3 printing: the
+notched corners of the layouts are the space the machine needs for its registration marks, and the
+transparent background around each card is what Design Space cuts along, so cards come out with their
+rounded corners already trimmed.
 
 The work is split in two phases:
 
@@ -30,7 +35,9 @@ The work is split in two phases:
 The options sit at the top. Below them the preview shows, live and at low resolution, every sheet that
 will be written; it follows any change to the options or to the layout.
 
-- **Layout**: A4 (6 cards) or A3 (14 cards), in the positions set in the layout editor.
+- **Layout**: A4 (6 cards) or A3 (14 cards), in the positions set in the layout editor. The sheet is
+  Cricut's Print then Cut area for that paper size — 7.2 × 10.62 in (183 × 269.5 mm) on A4, 10.64 × 15.44 in
+  (270 × 392 mm) on A3 — so the cards never fall where the registration marks go.
 - **Export back page**: adds a page with the card back (chosen in Settings) in every slot, mirrored
   horizontally for duplex printing.
 - **Extra cards**, for the cards that don't fill the last sheet: *Last page with empty slots*, or
@@ -45,6 +52,11 @@ will be written; it follows any change to the options or to the layout.
 
 Every card is cut out with `mask.png`: the image is scaled to 69.6 × 95 mm and clipped to the real card
 (63.5 × 88.9 mm, rounded corners).
+
+To print: import a sheet into Cricut Design Space as a Print then Cut image, keep it at its original size
+(the PNG carries 300 DPI, so it lands at the right physical size), print it, then let the machine cut
+along the transparent edge. For double-sided cards, print the `_back` page on the back of its sheet with a
+long-edge duplex flip.
 
 | File | Contents |
 |---|---|
