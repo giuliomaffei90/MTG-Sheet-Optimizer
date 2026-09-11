@@ -47,7 +47,7 @@ enum MPCFill {
         }
         let (data, response) = try await retrying { try await URLSession.shared.data(for: request) }
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-        guard status == 200 else { throw RenderError("MPCFill ha risposto \(status) a \(path)") }
+        guard status == 200 else { throw RenderError(tr("MPCFill answered %d to %@", status, path)) }
         return data
     }
 
@@ -127,11 +127,11 @@ enum MPCFill {
         let safeName = card.name.replacingOccurrences(of: "/", with: "-").replacingOccurrences(of: ":", with: "-")
         let file = dir.appendingPathComponent("\(safeName) (\(card.identifier)).\(card.extension)")
         if FileManager.default.fileExists(atPath: file.path) { return file }
-        guard let url = imageURL(card) else { throw RenderError("Nessun link per scaricare \(card.name)") }
+        guard let url = imageURL(card) else { throw RenderError(tr("No download link for %@", card.name)) }
         var request = URLRequest(url: url)
         request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
         let (tmp, response) = try await retrying { try await URLSession.shared.download(for: request) }
-        guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw RenderError("Download fallito: \(card.name)") }
+        guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw RenderError(tr("Download failed: %@", card.name)) }
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         try FileManager.default.moveItem(at: tmp, to: file)
         return file

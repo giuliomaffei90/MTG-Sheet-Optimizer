@@ -90,7 +90,7 @@ struct LayoutFile: Codable {
 func loadImage(_ url: URL) throws -> CGImage {
     guard let src = CGImageSourceCreateWithURL(url as CFURL, nil),
           let img = CGImageSourceCreateImageAtIndex(src, 0, nil)
-    else { throw RenderError("Impossibile leggere \(url.lastPathComponent)") }
+    else { throw RenderError(tr("Can't read %@", url.lastPathComponent)) }
     return img
 }
 
@@ -105,10 +105,10 @@ func makeContext(_ width: Int, _ height: Int) -> CGContext {
 func savePNG(_ img: CGImage, to url: URL) throws {
     try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
     guard let dest = CGImageDestinationCreateWithURL(url as CFURL, UTType.png.identifier as CFString, 1, nil)
-    else { throw RenderError("Impossibile scrivere \(url.lastPathComponent)") }
+    else { throw RenderError(tr("Can't write %@", url.lastPathComponent)) }
     let props = [kCGImagePropertyDPIWidth: outputDPI, kCGImagePropertyDPIHeight: outputDPI] as CFDictionary
     CGImageDestinationAddImage(dest, img, props)
-    guard CGImageDestinationFinalize(dest) else { throw RenderError("Impossibile scrivere \(url.lastPathComponent)") }
+    guard CGImageDestinationFinalize(dest) else { throw RenderError(tr("Can't write %@", url.lastPathComponent)) }
 }
 
 struct Masker {
@@ -173,12 +173,12 @@ struct RenderResult {
 
     func summary(_ kind: PageKind) -> String {
         var parts: [String] = []
-        if pages > 0 { parts.append("\(pages) layout \(kind.rawValue)") }
-        if lastPage { parts.append("1 ultima pagina con spazi vuoti") }
-        if singles > 0 { parts.append("\(singles) singole in '\(singlesDirName)'") }
-        if doubleSided > 0 { parts.append("\(doubleSided) alpha in '\(doubleSidedDirName)'") }
-        if backPage { parts.append("1 retro \(kind.rawValue)") }
-        return "Fatto: " + (parts.isEmpty ? "niente da fare" : parts.joined(separator: ", ")) + "."
+        if pages > 0 { parts.append(tr("%d %@ pages", pages, kind.rawValue)) }
+        if lastPage { parts.append(tr("1 last page with empty slots")) }
+        if singles > 0 { parts.append(tr("%d singles in '%@'", singles, singlesDirName)) }
+        if doubleSided > 0 { parts.append(tr("%d cut cards in '%@'", doubleSided, doubleSidedDirName)) }
+        if backPage { parts.append(tr("1 %@ back page", kind.rawValue)) }
+        return tr("Done: %@.", parts.isEmpty ? tr("nothing to do") : parts.joined(separator: ", "))
     }
 }
 

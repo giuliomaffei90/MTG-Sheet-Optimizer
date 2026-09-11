@@ -15,16 +15,15 @@ Il lavoro è diviso in due fasi:
   `Fronte // Retro`. Le intestazioni come `SIDEBOARD:` vengono ignorate.
 - Cerca su MPCFill con le sue impostazioni predefinite: tutte le fonti, NSFW escluse. Per ogni carta
   preseleziona la variante migliore.
+- Ogni copia compare come carta a sé: con `10 Island` vedi 10 Island (`Island 1/10`…) e puoi scegliere
+  un'art diversa per ognuna. La spunta sotto la carta la esclude dalla stampa.
 - Cliccando una carta si aprono tutte le sue varianti, con fonte, DPI e peso del file.
-- Per ogni carta puoi cambiare le copie o escluderla dalla stampa.
+- Lo slider in basso regola la grandezza delle carte nella griglia e nella scelta delle varianti.
 - Le carte fronte-retro (riconosciute da MPCFill o scritte come `Fronte // Retro`) mostrano anche la
   faccia posteriore. Entrambe le facce finiscono tra le carte fronte-retro, esportate come singole.
 - **Scarica e impagina** scarica le immagini direttamente da Google, a 2244 px di altezza (il doppio di
   quanto serve a 300 DPI), e passa alla fase 2. Le immagini restano in
   `~/Library/Caches/MTG Sheet Optimizer/`, così i download successivi della stessa variante sono istantanei.
-
-Per avere varianti diverse della stessa carta (per esempio più Island con art diverse), dividi la riga
-nella lista: `5 Island` e `6 Island`.
 
 ## Fase 2: Impaginazione
 
@@ -56,6 +55,11 @@ File generati nella cartella di output:
 
 Le copie multiple della stessa carta esportate come singole prendono un numero (`Island 2_alpha.png`…),
 così nessuna sovrascrive l'altra.
+
+## Impostazioni
+
+Da **MTG Sheet Optimizer → Impostazioni…** (⌘,) scegli la lingua dell'interfaccia: inglese o italiano.
+Al primo avvio l'app è in inglese. Il cambio è immediato, senza riavviare.
 
 ## Requisiti
 

@@ -26,12 +26,13 @@ struct MTGSheetOptimizerApp: App {
         WindowGroup("MTG Sheet Optimizer") {
             RootView().frame(minWidth: 900, minHeight: 700)
         }
+        Settings { SettingsView() }
     }
 }
 
-enum Phase: String, CaseIterable {
-    case deck = "1. Mazzo"
-    case layout = "2. Impaginazione"
+enum Phase: CaseIterable {
+    case deck, layout
+    var title: String { self == .deck ? tr("1. Deck") : tr("2. Layout") }
 }
 
 struct RootView: View {
@@ -54,8 +55,8 @@ struct RootView: View {
         }
         .toolbar {
             ToolbarItem(placement: .principal) {
-                Picker("Fase", selection: $phase) {
-                    ForEach(Phase.allCases, id: \.self) { Text($0.rawValue) }
+                Picker(tr("Phase"), selection: $phase) {
+                    ForEach(Phase.allCases, id: \.self) { Text($0.title) }
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()
@@ -92,7 +93,7 @@ final class Model {
     init() {
         masker = resource("mask.png").flatMap { try? Masker(url: $0) }
         loadKind(.A4)
-        if masker == nil { status = "mask.png mancante o non valido." }
+        if masker == nil { status = tr("mask.png missing or invalid.") }
     }
 
     var pageWidth: Double { Double(layout?.width ?? 0) }
@@ -106,7 +107,7 @@ final class Model {
         selected = nil
         if let url = resource(k.layoutJSON), let file = try? LayoutFile.load(url) {
             apply(file)
-            status = "\(url.lastPathComponent) caricato."
+            status = tr("%@ loaded.", url.lastPathComponent)
         }
         if slots.count != k.slotCount { resetSlots() }
     }
@@ -129,7 +130,7 @@ final class Model {
         let url = supportDir.appendingPathComponent(kind.layoutJSON)
         do {
             try LayoutFile(kind: kind, exportBackPage: exportBack, slots: slots, width: pageWidth, height: pageHeight).save(url)
-            status = "Salvato \(url.lastPathComponent)."
+            status = tr("Saved %@.", url.lastPathComponent)
         } catch {
             alertMessage = error.localizedDescription
         }
@@ -144,7 +145,7 @@ final class Model {
             loadKind(PageKind(rawValue: file.layoutKind ?? "") ?? kind)
             apply(file)
             if slots.count != kind.slotCount { resetSlots() }
-            status = "Caricato \(url.lastPathComponent)."
+            status = tr("Loaded %@.", url.lastPathComponent)
         } catch {
             alertMessage = error.localizedDescription
         }
@@ -161,30 +162,30 @@ final class Model {
     }
 
     func startRender() {
-        guard masker != nil else { alertMessage = "mask.png mancante o non valido."; return }
-        guard layout != nil else { alertMessage = "Non trovo \(kind.layoutPNG)."; return }
-        guard !outputPath.isEmpty else { alertMessage = "Scegli la cartella di output."; return }
+        guard masker != nil else { alertMessage = tr("mask.png missing or invalid."); return }
+        guard layout != nil else { alertMessage = tr("Can't find %@.", kind.layoutPNG); return }
+        guard !outputPath.isEmpty else { alertMessage = tr("Choose an output folder."); return }
 
         var cards: [URL] = [], doubleSided: [URL] = []
         if let deckFiles {
             cards = deckFiles.cards
             doubleSided = deckFiles.doubleSided
         } else {
-            guard !inputPath.isEmpty else { alertMessage = "Scegli la cartella di input."; return }
+            guard !inputPath.isEmpty else { alertMessage = tr("Choose an input folder."); return }
             let input = URL(fileURLWithPath: inputPath)
             cards = listImages(input)
             doubleSided = listImages(input.appendingPathComponent(doubleSidedDirName))
         }
-        guard !cards.isEmpty || !doubleSided.isEmpty else { alertMessage = "Nessuna immagine valida in input."; return }
+        guard !cards.isEmpty || !doubleSided.isEmpty else { alertMessage = tr("No valid images in the input."); return }
 
         var job = RenderJob(kind: kind, slots: slots, pageWidth: Int(pageWidth), pageHeight: Int(pageHeight),
                             cards: cards, doubleSided: doubleSided, output: URL(fileURLWithPath: outputPath))
         if exportBack {
-            guard let back = resource("back.jpg") else { alertMessage = "Retro attivo ma back.jpg non trovato."; return }
+            guard let back = resource("back.jpg") else { alertMessage = tr("Back page is on but back.jpg is missing."); return }
             job.back = back
             if slots.contains(where: { $0.rot.truncatingRemainder(dividingBy: 180) == 90 }) {
                 guard let back90 = resource("back90.jpg") else {
-                    alertMessage = "Retro attivo con carte a 90° ma back90.jpg non trovato."
+                    alertMessage = tr("Back page is on with 90° cards but back90.jpg is missing.")
                     return
                 }
                 job.back90 = back90
@@ -205,7 +206,7 @@ final class Model {
         var job = job
         job.remainder = remainder
         rendering = true
-        status = "Render in corso..."
+        status = tr("Rendering…")
         Task.detached {
             do {
                 let result = try renderAll(job, masker: masker) { msg in
@@ -219,7 +220,7 @@ final class Model {
             } catch {
                 await MainActor.run {
                     self.rendering = false
-                    self.status = "Errore."
+                    self.status = tr("Error.")
                     self.alertMessage = error.localizedDescription
                 }
             }
@@ -239,24 +240,24 @@ struct ContentView: View {
             canvas
         }
         .onChange(of: model.kind) { model.kindChanged() }
-        .alert("Ultima pagina incompleta",
+        .alert(tr("Incomplete last page"),
                isPresented: Binding(get: { model.pendingJob != nil }, set: { if !$0 { model.pendingJob = nil } }),
                presenting: model.pendingJob) { job in
-            Button("Esporta singolarmente") { model.run(job, remainder: .singles) }
-            Button("Esporta pagina con spazi vuoti") { model.run(job, remainder: .onePage) }
-            Button("Annulla", role: .cancel) { model.status = "Annullato." }
+            Button(tr("Export as singles")) { model.run(job, remainder: .singles) }
+            Button(tr("Export page with empty slots")) { model.run(job, remainder: .onePage) }
+            Button(tr("Cancel"), role: .cancel) { model.status = tr("Cancelled.") }
         } message: { _ in
-            Text("Nell'ultima pagina mancano \(model.missingSlots) carte. Cosa vuoi fare con le carte rimanenti?")
+            Text(tr("The last page is missing %d cards. What do you want to do with the remaining cards?", model.missingSlots))
         }
-        .alert("Completato",
+        .alert(tr("Done"),
                isPresented: Binding(get: { model.finishedOutput != nil }, set: { if !$0 { model.finishedOutput = nil } }),
                presenting: model.finishedOutput) { url in
-            Button("Apri cartella") { NSWorkspace.shared.open(url) }
-            Button("Chiudi", role: .cancel) {}
+            Button(tr("Open folder")) { NSWorkspace.shared.open(url) }
+            Button(tr("Close"), role: .cancel) {}
         } message: { _ in
             Text(model.status)
         }
-        .alert("Errore",
+        .alert(tr("Error"),
                isPresented: Binding(get: { model.alertMessage != nil }, set: { if !$0 { model.alertMessage = nil } }),
                presenting: model.alertMessage) { _ in
             Button("OK", role: .cancel) {}
@@ -272,18 +273,18 @@ struct ContentView: View {
                 }
                 .pickerStyle(.segmented)
                 .fixedSize()
-                Toggle("Esporta retro", isOn: $m.exportBack)
+                Toggle(tr("Export back page"), isOn: $m.exportBack)
                 Spacer()
-                Button("Salva layout", action: model.saveLayout)
-                Button("Carica layout…", action: model.loadLayoutManually)
-                Button("Reimposta slot", action: model.resetSlots)
+                Button(tr("Save layout"), action: model.saveLayout)
+                Button(tr("Load layout…"), action: model.loadLayoutManually)
+                Button(tr("Reset slots"), action: model.resetSlots)
             }
             if let files = model.deckFiles {
                 HStack {
                     Text("Input").frame(width: 50, alignment: .leading)
-                    Text("Mazzo da MPCFill: \(files.cards.count) carte, \(files.doubleSided.count) facce fronte-retro")
+                    Text(tr("Deck from MPCFill: %d cards, %d double-sided faces", files.cards.count, files.doubleSided.count))
                         .frame(maxWidth: .infinity, alignment: .leading)
-                    Button("Usa una cartella") { model.deckFiles = nil }
+                    Button(tr("Use a folder")) { model.deckFiles = nil }
                 }
             } else {
                 folderRow("Input", path: $m.inputPath)
@@ -292,7 +293,7 @@ struct ContentView: View {
             HStack {
                 Button("Render") { model.startRender() }
                     .disabled(model.rendering)
-                Button("Apri output") { NSWorkspace.shared.open(URL(fileURLWithPath: model.outputPath)) }
+                Button(tr("Open output")) { NSWorkspace.shared.open(URL(fileURLWithPath: model.outputPath)) }
                     .disabled(model.outputPath.isEmpty)
                 Divider().frame(height: 16)
                 Group {
@@ -319,7 +320,7 @@ struct ContentView: View {
                 .lineLimit(1)
                 .truncationMode(.middle)
                 .frame(maxWidth: .infinity, alignment: .leading)
-            Button("Scegli…") {
+            Button(tr("Choose…")) {
                 if let p = chooseFolder() { path.wrappedValue = p }
             }
         }
@@ -369,7 +370,7 @@ struct ContentView: View {
                         .onEnded { _ in dragOrigin = nil }
                 )
             } else {
-                Text("Layout o mask.png mancanti")
+                Text(tr("Layout or mask.png missing"))
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }

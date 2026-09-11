@@ -19,13 +19,17 @@ final class DeckModel {
         var selected: MPCFill.Card?
     }
 
+    /// One physical card: "10 Island" becomes ten rows, each with its own variant.
     struct Row: Identifiable {
         let id = UUID()
         var name: String
-        var quantity: Int
+        var copy = 1
+        var copies = 1
         var included = true
         var front: Face
         var back: Face?
+
+        var title: String { copies > 1 ? "\(name) \(copy)/\(copies)" : name }
     }
 
     var text = UserDefaults.standard.string(forKey: "deckText") ?? "" {
@@ -39,23 +43,25 @@ final class DeckModel {
     private var dfcPairs: [String: String]?
 
     private var chosen: [Row] { rows.filter { $0.included && $0.front.selected != nil } }
-    var pageCards: Int { chosen.filter { $0.back == nil }.reduce(0) { $0 + $1.quantity } }
-    var doubleSidedCards: Int { chosen.filter { $0.back != nil }.reduce(0) { $0 + $1.quantity } }
+    var pageCards: Int { chosen.filter { $0.back == nil }.count }
+    var doubleSidedCards: Int { chosen.filter { $0.back != nil }.count }
 
     func search() async {
         busy = true
         defer { busy = false }
-        status = "Cerco su MPCFill…"
+        status = tr("Searching MPCFill…")
         do {
             if sources == nil { sources = try await MPCFill.sourceIDs() }
             if dfcPairs == nil { dfcPairs = try await MPCFill.dfcPairs() }
             let entries = MPCFill.parseDecklist(text, dfcPairs: dfcPairs ?? [:])
             let hits = try await MPCFill.search(entries.flatMap { [$0.front] + ($0.back.map { [$0] } ?? []) },
                                                 sources: sources ?? [])
-            var newRows = entries.map { e in
-                Row(name: e.name, quantity: e.quantity,
-                    front: Face(query: e.front, results: hits[e.front] ?? []),
-                    back: e.back.map { Face(query: $0, results: hits[$0] ?? []) })
+            var newRows = entries.flatMap { e in
+                (1...e.quantity).map { n in
+                    Row(name: e.name, copy: n, copies: e.quantity,
+                        front: Face(query: e.front, results: hits[e.front] ?? []),
+                        back: e.back.map { Face(query: $0, results: hits[$0] ?? []) })
+                }
             }
             // Best variant of every face preselected, like mpcfill.com.
             let firsts = newRows.flatMap { [$0.front.results.first, $0.back?.results.first] }.compactMap { $0 }
@@ -68,11 +74,11 @@ final class DeckModel {
                 newRows[i].included = front != nil
             }
             rows = newRows
-            let missing = rows.filter { $0.front.selected == nil }.map(\.name)
-            status = missing.isEmpty ? "Trovate tutte le \(rows.count) carte."
-                                     : "Non trovate: " + missing.joined(separator: ", ")
+            let missing = rows.filter { $0.front.selected == nil && $0.copy == 1 }.map(\.name)
+            status = missing.isEmpty ? tr("Found all %d cards.", entries.count)
+                                     : tr("Not found: %@", missing.joined(separator: ", "))
         } catch {
-            status = "Errore: \(error.localizedDescription)"
+            status = tr("Error: %@", error.localizedDescription)
         }
     }
 
@@ -88,7 +94,7 @@ final class DeckModel {
         return cardCache
     }
 
-    /// Downloads the chosen variants (4 at a time) and returns them with one entry per copy.
+    /// Downloads the chosen variants (4 at a time) and returns one entry per card.
     func download() async -> DeckFiles? {
         busy = true
         defer { busy = false }
@@ -100,28 +106,26 @@ final class DeckModel {
                 for (i, card) in unique.enumerated() {
                     if i >= 4, let done = try await group.next() {
                         files[done.0] = done.1
-                        status = "Scarico \(files.count)/\(unique.count)…"
+                        status = tr("Downloading %d/%d…", files.count, unique.count)
                     }
                     group.addTask { (card.identifier, try await MPCFill.download(card, to: imageCacheDir)) }
                 }
                 for try await done in group {
                     files[done.0] = done.1
-                    status = "Scarico \(files.count)/\(unique.count)…"
+                    status = tr("Downloading %d/%d…", files.count, unique.count)
                 }
             }
         } catch {
-            status = "Errore: \(error.localizedDescription)"
+            status = tr("Error: %@", error.localizedDescription)
             return nil
         }
 
         var out = DeckFiles(cards: [], doubleSided: [])
         for row in rows {
             let faces = [row.front.selected, row.back?.selected].compactMap { $0.flatMap { files[$0.identifier] } }
-            for _ in 0..<row.quantity {
-                if row.back == nil { out.cards += faces } else { out.doubleSided += faces }
-            }
+            if row.back == nil { out.cards += faces } else { out.doubleSided += faces }
         }
-        status = "Scaricate \(unique.count) immagini."
+        status = tr("Downloaded %d images.", unique.count)
         return out
     }
 }
@@ -132,6 +136,7 @@ struct DeckView: View {
     @Bindable var deck: DeckModel
     let onReady: (DeckFiles) -> Void
     @State private var picking: Pick?
+    @AppStorage("tileSize") private var tileSize = 150.0
 
     struct Pick: Identifiable {
         let row: UUID
@@ -142,14 +147,11 @@ struct DeckView: View {
     var body: some View {
         HSplitView {
             VStack(alignment: .leading, spacing: 8) {
-                Text("Lista del mazzo").font(.headline)
-                Text("Incolla l'export di Moxfield: \"1 Abrade\", \"11 Island\"…")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                Text(tr("Deck list")).font(.headline)
                 TextEditor(text: $deck.text)
                     .font(.system(.body, design: .monospaced))
                     .border(Color.secondary.opacity(0.3))
-                Button("Cerca su MPCFill") { Task { await deck.search() } }
+                Button(tr("Search MPCFill")) { Task { await deck.search() } }
                     .disabled(deck.busy || deck.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
             .padding(10)
@@ -157,12 +159,12 @@ struct DeckView: View {
 
             VStack(spacing: 0) {
                 if deck.rows.isEmpty {
-                    Text("Incolla la lista e premi \"Cerca su MPCFill\".")
+                    Text(tr("Paste the list and press \"Search MPCFill\"."))
                         .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     ScrollView {
-                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 12)], spacing: 16) {
+                        LazyVGrid(columns: [GridItem(.adaptive(minimum: tileSize), spacing: 12)], spacing: 16) {
                             ForEach($deck.rows) { $row in
                                 FaceTile(row: $row, back: false) { picking = Pick(row: row.id, back: false) }
                                 if row.back != nil {
@@ -178,8 +180,13 @@ struct DeckView: View {
                     if deck.busy { ProgressView().controlSize(.small) }
                     Text(deck.status).foregroundStyle(.secondary).lineLimit(1)
                     Spacer()
-                    Text("\(deck.pageCards) carte, \(deck.doubleSidedCards) fronte-retro")
-                    Button("Scarica e impagina") {
+                    Image(systemName: "square.grid.3x3").foregroundStyle(.secondary)
+                    Slider(value: $tileSize, in: 90...300)
+                        .frame(width: 120)
+                        .help(tr("Card size"))
+                    Image(systemName: "square.grid.2x2").foregroundStyle(.secondary)
+                    Text(tr("%d cards, %d double-sided", deck.pageCards, deck.doubleSidedCards))
+                    Button(tr("Download and lay out")) {
                         Task { if let files = await deck.download() { onReady(files) } }
                     }
                     .disabled(deck.busy || deck.pageCards + deck.doubleSidedCards == 0)
@@ -191,7 +198,7 @@ struct DeckView: View {
         .sheet(item: $picking) { pick in
             if let i = deck.rows.firstIndex(where: { $0.id == pick.row }),
                let face = pick.back ? deck.rows[i].back : deck.rows[i].front as DeckModel.Face? {
-                VariantPicker(title: face.selected?.name ?? deck.rows[i].name, face: face, deck: deck) { card in
+                VariantPicker(title: deck.rows[i].title, face: face, deck: deck) { card in
                     if pick.back { deck.rows[i].back?.selected = card } else { deck.rows[i].front.selected = card }
                 }
             }
@@ -211,26 +218,23 @@ private struct FaceTile: View {
                 .buttonStyle(.plain)
                 .disabled(face?.results.isEmpty ?? true)
                 .opacity(row.included ? 1 : 0.35)
-                .help("Scegli la variante")
-            Text(back ? "Retro: \(face?.selected?.name ?? "")" : row.name)
+                .help(tr("Choose the variant"))
+            Text(back ? tr("Back: %@", face?.selected?.name ?? "") : row.title)
                 .font(.caption.bold())
                 .lineLimit(1)
             if let face, let card = face.selected {
-                Text("\(card.sourceName) · \(card.dpi) DPI · \(face.results.count) varianti")
+                Text(tr("%@ · %d DPI · %d variants", card.sourceName, card.dpi, face.results.count))
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             } else {
-                Text("Non trovata").font(.caption2).foregroundStyle(.red)
+                Text(tr("Not found")).font(.caption2).foregroundStyle(.red)
             }
             if !back {
-                HStack(spacing: 4) {
-                    Toggle("", isOn: $row.included)
-                        .labelsHidden()
-                        .disabled(row.front.selected == nil)
-                    Stepper("×\(row.quantity)", value: $row.quantity, in: 1...99)
-                        .font(.caption)
-                }
+                Toggle("", isOn: $row.included)
+                    .labelsHidden()
+                    .disabled(row.front.selected == nil)
+                    .help(tr("Print this card"))
             }
         }
     }
@@ -258,6 +262,7 @@ private struct VariantPicker: View {
     let deck: DeckModel
     let onPick: (MPCFill.Card) -> Void
     @Environment(\.dismiss) private var dismiss
+    @AppStorage("tileSize") private var tileSize = 150.0
     @State private var cards: [MPCFill.Card] = []
     @State private var error: String?
 
@@ -265,37 +270,45 @@ private struct VariantPicker: View {
         VStack(spacing: 0) {
             HStack {
                 Text(title).font(.headline)
-                Text("\(face.results.count) varianti").foregroundStyle(.secondary)
+                Text(tr("%d variants", face.results.count)).foregroundStyle(.secondary)
                 Spacer()
-                Button("Chiudi") { dismiss() }.keyboardShortcut(.cancelAction)
+                Button(tr("Close")) { dismiss() }.keyboardShortcut(.cancelAction)
             }
             .padding(12)
             Divider()
-            ScrollView {
-                if let error { Text(error).foregroundStyle(.red).padding() }
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 140), spacing: 12)], spacing: 14) {
-                    ForEach(cards) { card in
-                        Button {
-                            onPick(card)
-                            dismiss()
-                        } label: {
-                            VStack(spacing: 3) {
-                                Thumbnail(url: card.smallThumbnailUrl)
-                                    .overlay {
-                                        if card.identifier == face.selected?.identifier {
-                                            RoundedRectangle(cornerRadius: 6).stroke(Color.accentColor, lineWidth: 3)
+            if let error {
+                Text(error)
+                    .foregroundStyle(.red)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if cards.isEmpty {
+                ProgressView(tr("Loading %d variants…", face.results.count))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                ScrollView {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: tileSize), spacing: 12)], spacing: 14) {
+                        ForEach(cards) { card in
+                            Button {
+                                onPick(card)
+                                dismiss()
+                            } label: {
+                                VStack(spacing: 3) {
+                                    Thumbnail(url: card.smallThumbnailUrl)
+                                        .overlay {
+                                            if card.identifier == face.selected?.identifier {
+                                                RoundedRectangle(cornerRadius: 6).stroke(Color.accentColor, lineWidth: 3)
+                                            }
                                         }
-                                    }
-                                Text(card.sourceName).font(.caption).lineLimit(1)
-                                Text("\(card.dpi) DPI · \(String(format: "%.1f", Double(card.size) / 1_000_000)) MB")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
+                                    Text(card.sourceName).font(.caption).lineLimit(1)
+                                    Text("\(card.dpi) DPI · \(String(format: "%.1f", Double(card.size) / 1_000_000)) MB")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
                             }
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
                     }
+                    .padding(12)
                 }
-                .padding(12)
             }
         }
         .frame(minWidth: 600, idealWidth: 820, minHeight: 440, idealHeight: 640)
