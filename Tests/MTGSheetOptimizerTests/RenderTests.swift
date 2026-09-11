@@ -22,31 +22,34 @@ private let resources = URL(fileURLWithPath: #filePath)
     }
 }
 
-/// 7 synthetic cards (top half red, bottom half blue) on A4: 1 page + 1 single, back page, 300 DPI,
-/// and 90° slots rotated clockwise like the Python tool.
+/// 8 synthetic cards (top half red, bottom half blue; the last one twice) on A4: 1 page + 2 singles
+/// that don't overwrite each other, back page, 300 DPI, and 90° slots rotated clockwise like the Python tool.
 @Test func renderA4() throws {
     let tmp = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: tmp) }
-    let input = tmp.appendingPathComponent("in"), output = tmp.appendingPathComponent("out")
+    let output = tmp.appendingPathComponent("out")
 
     let card = makeContext(600, 820)   // CoreGraphics is y-up: y >= 410 is the top half
     card.setFillColor(red: 0, green: 0, blue: 1, alpha: 1)
     card.fill(CGRect(x: 0, y: 0, width: 600, height: 410))
     card.setFillColor(red: 1, green: 0, blue: 0, alpha: 1)
     card.fill(CGRect(x: 0, y: 410, width: 600, height: 410))
-    for i in 1...7 { try savePNG(card.makeImage()!, to: input.appendingPathComponent("card\(i).png")) }
+    let cards = (1...7).map { tmp.appendingPathComponent("in/card\($0).png") }
+    for url in cards { try savePNG(card.makeImage()!, to: url) }
 
     let layout = try loadImage(resources.appendingPathComponent("Layout A4.png"))
     let slots = try LayoutFile.load(resources.appendingPathComponent("LayoutA4.json"))
         .pageSlots(width: Double(layout.width), height: Double(layout.height))
     let job = RenderJob(kind: .A4, slots: slots, pageWidth: layout.width, pageHeight: layout.height,
-                        input: input, output: output,
+                        cards: cards + [cards[6]], doubleSided: [], output: output,
                         back: resources.appendingPathComponent("back.jpg"),
                         back90: resources.appendingPathComponent("back90.jpg"),
                         remainder: .singles)
     let result = try renderAll(job, masker: Masker(url: resources.appendingPathComponent("mask.png")))
-    #expect(result.pages == 1 && result.singles == 1 && result.backPage)
-    #expect(FileManager.default.fileExists(atPath: output.appendingPathComponent("Singles/card7_alpha.png").path))
+    #expect(result.pages == 1 && result.singles == 2 && result.backPage)
+    for name in ["card7_alpha.png", "card7 2_alpha.png"] {
+        #expect(FileManager.default.fileExists(atPath: output.appendingPathComponent("Singles/\(name)").path))
+    }
 
     let pageURL = output.appendingPathComponent("layout_A4_001.png")
     let src = try #require(CGImageSourceCreateWithURL(pageURL as CFURL, nil))

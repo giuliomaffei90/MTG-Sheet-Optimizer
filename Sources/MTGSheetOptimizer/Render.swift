@@ -159,7 +159,8 @@ struct RenderJob {
     var slots: [Slot]
     var pageWidth: Int
     var pageHeight: Int
-    var input: URL
+    var cards: [URL]          // one entry per copy, placed on pages in order
+    var doubleSided: [URL]    // exported as singles only
     var output: URL
     var back: URL? = nil
     var back90: URL? = nil
@@ -181,9 +182,14 @@ struct RenderResult {
     }
 }
 
+/// Repeated files (several copies of a card) get " 2", " 3"… so no copy overwrites another.
 func exportSingles(_ files: [URL], to dir: URL, masker: Masker) throws -> Int {
+    var seen: [String: Int] = [:]
     for f in files {
-        try savePNG(masker.card(f), to: dir.appendingPathComponent(f.deletingPathExtension().lastPathComponent + "_alpha.png"))
+        let stem = f.deletingPathExtension().lastPathComponent
+        seen[stem, default: 0] += 1
+        let suffix = seen[stem]! > 1 ? " \(seen[stem]!)" : ""
+        try savePNG(masker.card(f), to: dir.appendingPathComponent("\(stem)\(suffix)_alpha.png"))
     }
     return files.count
 }
@@ -191,7 +197,7 @@ func exportSingles(_ files: [URL], to dir: URL, masker: Masker) throws -> Int {
 func renderAll(_ job: RenderJob, masker: Masker, progress: (String) -> Void = { _ in }) throws -> RenderResult {
     var result = RenderResult()
     let n = job.slots.count
-    let cards = listImages(job.input)
+    let cards = job.cards
     let kind = job.kind.rawValue
 
     func page(_ files: [URL], _ name: String) throws {
@@ -228,9 +234,8 @@ func renderAll(_ job: RenderJob, masker: Masker, progress: (String) -> Void = { 
         }
     }
 
-    let ds = listImages(job.input.appendingPathComponent(doubleSidedDirName))
-    if !ds.isEmpty {
-        result.doubleSided = try exportSingles(ds, to: job.output.appendingPathComponent(doubleSidedDirName), masker: masker)
+    if !job.doubleSided.isEmpty {
+        result.doubleSided = try exportSingles(job.doubleSided, to: job.output.appendingPathComponent(doubleSidedDirName), masker: masker)
     }
     return result
 }

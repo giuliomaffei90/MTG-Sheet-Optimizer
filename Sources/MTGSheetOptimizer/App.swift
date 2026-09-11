@@ -24,7 +24,42 @@ func chooseFolder() -> String? {
 struct MTGSheetOptimizerApp: App {
     var body: some Scene {
         WindowGroup("MTG Sheet Optimizer") {
-            ContentView().frame(minWidth: 820, minHeight: 700)
+            RootView().frame(minWidth: 900, minHeight: 700)
+        }
+    }
+}
+
+enum Phase: String, CaseIterable {
+    case deck = "1. Mazzo"
+    case layout = "2. Impaginazione"
+}
+
+struct RootView: View {
+    @State private var phase = Phase.deck
+    @State private var model = Model()
+    @State private var deck = DeckModel()
+
+    var body: some View {
+        Group {
+            // Only the visible phase is in the hierarchy, so the layout's key shortcuts (r, ⌫) never fire while typing the list.
+            switch phase {
+            case .deck:
+                DeckView(deck: deck) { files in
+                    model.deckFiles = files
+                    phase = .layout
+                }
+            case .layout:
+                ContentView(model: model)
+            }
+        }
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Picker("Fase", selection: $phase) {
+                    ForEach(Phase.allCases, id: \.self) { Text($0.rawValue) }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+            }
         }
     }
 }
@@ -46,6 +81,7 @@ final class Model {
     var outputPath = UserDefaults.standard.string(forKey: "outputPath") ?? "" {
         didSet { UserDefaults.standard.set(outputPath, forKey: "outputPath") }
     }
+    var deckFiles: DeckFiles?    // cards from phase 1; nil = read the input folder
     var pendingJob: RenderJob?   // waiting for the "last page" choice
     var missingSlots = 0
     var alertMessage: String?
@@ -127,16 +163,22 @@ final class Model {
     func startRender() {
         guard masker != nil else { alertMessage = "mask.png mancante o non valido."; return }
         guard layout != nil else { alertMessage = "Non trovo \(kind.layoutPNG)."; return }
-        guard !inputPath.isEmpty, !outputPath.isEmpty else { alertMessage = "Scegli la cartella di input e di output."; return }
-        let input = URL(fileURLWithPath: inputPath)
-        let cards = listImages(input)
-        guard !cards.isEmpty || !listImages(input.appendingPathComponent(doubleSidedDirName)).isEmpty else {
-            alertMessage = "Nessuna immagine valida in input."
-            return
+        guard !outputPath.isEmpty else { alertMessage = "Scegli la cartella di output."; return }
+
+        var cards: [URL] = [], doubleSided: [URL] = []
+        if let deckFiles {
+            cards = deckFiles.cards
+            doubleSided = deckFiles.doubleSided
+        } else {
+            guard !inputPath.isEmpty else { alertMessage = "Scegli la cartella di input."; return }
+            let input = URL(fileURLWithPath: inputPath)
+            cards = listImages(input)
+            doubleSided = listImages(input.appendingPathComponent(doubleSidedDirName))
         }
+        guard !cards.isEmpty || !doubleSided.isEmpty else { alertMessage = "Nessuna immagine valida in input."; return }
 
         var job = RenderJob(kind: kind, slots: slots, pageWidth: Int(pageWidth), pageHeight: Int(pageHeight),
-                            input: input, output: URL(fileURLWithPath: outputPath))
+                            cards: cards, doubleSided: doubleSided, output: URL(fileURLWithPath: outputPath))
         if exportBack {
             guard let back = resource("back.jpg") else { alertMessage = "Retro attivo ma back.jpg non trovato."; return }
             job.back = back
@@ -188,7 +230,7 @@ final class Model {
 // MARK: - Views
 
 struct ContentView: View {
-    @State private var model = Model()
+    let model: Model
     @State private var dragOrigin: Slot?
 
     var body: some View {
@@ -236,7 +278,16 @@ struct ContentView: View {
                 Button("Carica layout…", action: model.loadLayoutManually)
                 Button("Reimposta slot", action: model.resetSlots)
             }
-            folderRow("Input", path: $m.inputPath)
+            if let files = model.deckFiles {
+                HStack {
+                    Text("Input").frame(width: 50, alignment: .leading)
+                    Text("Mazzo da MPCFill: \(files.cards.count) carte, \(files.doubleSided.count) facce fronte-retro")
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Button("Usa una cartella") { model.deckFiles = nil }
+                }
+            } else {
+                folderRow("Input", path: $m.inputPath)
+            }
             folderRow("Output", path: $m.outputPath)
             HStack {
                 Button("Render") { model.startRender() }
