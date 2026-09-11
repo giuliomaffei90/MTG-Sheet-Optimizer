@@ -1,0 +1,14 @@
+{
+  "comment": "Every user-visible feature. 'core' ones are proved by the conformance run; 'ui' ones are checked by hand on each platform. A feature must be implemented on both platforms or carry a note saying why not.",
+  "features": [
+    { "id": "decklist-parse",   "kind": "core", "title": "Read a Moxfield list",                    "platforms": { "macos": true, "windows": true } },
+    { "id": "mpcfill-search",   "kind": "core", "title": "Search cards and variants on MPCFill",    "platforms": { "macos": true, "windows": true } },
+    { "id": "sheet-plan",       "kind": "core", "title": "Plan sheets, backs, singles",             "platforms": { "macos": true, "windows": true } },
+    { "id": "render-300dpi",    "kind": "core", "title": "Render masked sheets at 300 DPI",         "platforms": { "macos": true, "windows": true } },
+    { "id": "deck-phase",       "kind": "ui",   "title": "Deck phase: grid, variants, download",    "platforms": { "macos": true, "windows": false } },
+    { "id": "live-preview",     "kind": "ui",   "title": "Live preview of the sheets",              "platforms": { "macos": true, "windows": false } },
+    { "id": "layout-editor",    "kind": "ui",   "title": "Layout editor: move, rotate, align, distribute", "platforms": { "macos": true, "windows": false } },
+    { "id": "card-back-picker", "kind": "ui",   "title": "Pick the card back from MPCFill",         "platforms": { "macos": true, "windows": false } },
+    { "id": "language-switch",  "kind": "ui",   "title": "English/Italian, switched live",          "platforms": { "macos": true, "windows": false } }
+  ]
+}

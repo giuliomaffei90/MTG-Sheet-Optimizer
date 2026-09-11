@@ -1,0 +1,153 @@
+{
+  "name": "render-a4",
+  "note": "The shipped A4 layout with fixture images: one double-faced card in duplex plus eight singles. 'geometry' is the alpha bounding box of every drawn card, in page pixels, tolerance 2 px.",
+  "pageWidth": 2162,
+  "pageHeight": 3183,
+  "kind": "A4",
+  "slots": [
+    [
+      635.8124,
+      490.2638,
+      90.0
+    ],
+    [
+      624.3383,
+      1253.6385,
+      90.0
+    ],
+    [
+      1621.6095,
+      715.1867,
+      0.0
+    ],
+    [
+      918.67,
+      2798.3818,
+      90.0
+    ],
+    [
+      600.4829,
+      2024.7833,
+      90.0
+    ],
+    [
+      1618.2015,
+      1850.9793,
+      0.0
+    ]
+  ],
+  "cards": [
+    [
+      "card1"
+    ],
+    [
+      "card2"
+    ],
+    [
+      "card3"
+    ],
+    [
+      "card4"
+    ],
+    [
+      "card5"
+    ],
+    [
+      "card6"
+    ],
+    [
+      "card7"
+    ],
+    [
+      "card7"
+    ],
+    [
+      "card1",
+      "card2"
+    ]
+  ],
+  "extra": "singles",
+  "doubleSided": "duplex",
+  "backPage": true,
+  "render": true,
+  "expected": {
+    "geometry": {
+      "layout_A4_001_back.png": [
+        [
+          1001,
+          115,
+          1050,
+          750
+        ],
+        [
+          1013,
+          879,
+          1050,
+          750
+        ],
+        [
+          165,
+          190,
+          750,
+          1050
+        ],
+        [
+          718,
+          2423,
+          1050,
+          750
+        ],
+        [
+          1037,
+          1650,
+          1050,
+          750
+        ],
+        [
+          169,
+          1326,
+          750,
+          1050
+        ]
+      ],
+      "layout_A4_001.png": [
+        [
+          111,
+          115,
+          1050,
+          750
+        ],
+        [
+          99,
+          879,
+          1050,
+          750
+        ],
+        [
+          1247,
+          190,
+          750,
+          1050
+        ],
+        [
+          394,
+          2423,
+          1050,
+          750
+        ],
+        [
+          75,
+          1650,
+          1050,
+          750
+        ],
+        [
+          1243,
+          1326,
+          750,
+          1050
+        ]
+      ]
+    }
+  }
+}

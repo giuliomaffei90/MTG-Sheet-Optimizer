@@ -6,7 +6,7 @@ import ImageIO
 
 private let resources = URL(fileURLWithPath: #filePath)
     .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-    .appendingPathComponent("Resources")
+    .appendingPathComponent("spec/Resources")
 
 private func url(_ name: String) -> URL { URL(fileURLWithPath: "/cards/\(name).png") }
 

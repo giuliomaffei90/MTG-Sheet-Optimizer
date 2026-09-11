@@ -21,6 +21,8 @@ func chooseFolder() -> String? {
 
 @main
 struct MTGSheetOptimizerApp: App {
+    init() { Conformance.runIfRequested() }
+
     var body: some Scene {
         WindowGroup("MTG Sheet Optimizer") {
             RootView().frame(minWidth: 900, minHeight: 700)

@@ -1,0 +1,17 @@
+{
+  "name": "duplex-with-back-page",
+  "note": "With the flag the other slots get the generic back, and sheets without double-faced cards share one back page. A back on a 90 deg slot turns to 270 deg.",
+  "pageWidth": 1000, "pageHeight": 1400, "kind": "A3",
+  "slots": [[100, 100, 90], [300, 100, 0]],
+  "cards": [["a"], ["f", "b"], ["c"]],
+  "extra": "emptySlots", "doubleSided": "duplex", "backPage": true,
+  "expected": {
+    "pages": [
+      { "name": "backpage_A3.png", "isBack": true, "items": [["$back", 900, 100, 270], ["$back", 700, 100, 0]] },
+      { "name": "layout_A3_001.png", "isBack": false, "items": [["f", 100, 100, 90], ["a", 300, 100, 0]] },
+      { "name": "layout_A3_001_back.png", "isBack": true, "items": [["b", 900, 100, 270], ["$back", 700, 100, 0]] },
+      { "name": "layout_A3_LAST.png", "isBack": false, "items": [["c", 100, 100, 90]] }
+    ],
+    "singles": [], "doubleSided": []
+  }
+}

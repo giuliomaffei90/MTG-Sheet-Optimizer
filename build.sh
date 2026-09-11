@@ -9,7 +9,7 @@ APP="dist/MTG Sheet Optimizer.app"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp .build/release/MTGSheetOptimizer "$APP/Contents/MacOS/"
-cp Resources/* "$APP/Contents/Resources/"
+cp spec/Resources/* "$APP/Contents/Resources/"
 # AppIcon.icon is an Icon Composer document: actool compiles it into Assets.car (Liquid Glass on
 # macOS 26) plus AppIcon.icns for older macOS.
 xcrun actool AppIcon.icon --compile "$APP/Contents/Resources" --app-icon AppIcon \

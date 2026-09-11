@@ -1,0 +1,14 @@
+{
+  "name": "double-sided-as-singles",
+  "note": "Double-faced cards stay off the sheets; both faces are exported cut instead. The leftover single card goes to Singles/.",
+  "pageWidth": 1000, "pageHeight": 1400, "kind": "A4",
+  "slots": [[100, 100, 0], [300, 100, 0]],
+  "cards": [["a"], ["f", "b"], ["c"], ["d"]],
+  "extra": "singles", "doubleSided": "singles", "backPage": false,
+  "expected": {
+    "pages": [
+      { "name": "layout_A4_001.png", "isBack": false, "items": [["a", 100, 100, 0], ["c", 300, 100, 0]] }
+    ],
+    "singles": ["d"], "doubleSided": ["f", "b"]
+  }
+}
