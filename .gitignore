@@ -6,3 +6,6 @@ dist/
 # C# build output
 windows/**/bin/
 windows/**/obj/
+
+# conformance output
+out/
