@@ -100,6 +100,25 @@ MPCFILL_LIVE=1 swift test       # aggiunge il test che interroga mpcfill.com dav
 - **Icona**: `AppIcon.icon` è un documento di Icon Composer, compilato da `actool`. Il favicon dell'app non
   va cambiato tra una build e l'altra.
 
+## Release
+
+Convenzione presa da Arcane Manager (`agents/release-notes.md` di quel repo).
+
+- **Numero di versione**: si propone all'utente e si aspetta il suo via libera prima di taggare. Non è
+  semver: la major si alza solo se lo chiede lui, la minor per funzioni vere, la patch per correzioni e
+  ritocchi. La fonte di verità è `CFBundleShortVersionString` nell'Info.plist dentro `build.sh`, da alzare
+  nello stesso commit della release, e il tag `vX.Y.Z` deve combaciare.
+- **Changelog**: scritto per intero prima di taggare, in inglese al passato ("Added", "Improved",
+  "Fixed"), confrontando con la release precedente e non con l'ultimo commit. Formato: una sezione
+  `## Changes` con i punti rivolti all'utente e una `## Notes` con le avvertenze (build non firmata,
+  Gatekeeper, requisiti). Niente sezioni su verifica o elenco degli allegati: quelli GitHub li mostra già.
+- **Tag**: `git tag -a vX.Y.Z -F <file-changelog> --cleanup=verbatim`. Il `--cleanup=verbatim` è
+  obbligatorio: senza, git tratta le righe `## ` come commenti e la release perde i titoli di sezione.
+- **Pubblicazione**: build locale con `./build.sh`, DMG con l'app più il collegamento ad Applications, poi
+  `gh release create vX.Y.Z --title "MTG Sheet Optimizer X.Y.Z" --notes-file <file-changelog> <dmg>`.
+  In Arcane Manager la build la fa la CI al push del tag; qui l'app è solo macOS e il toolchain giusto è
+  già in locale, quindi si costruisce e si carica da qui.
+
 ## Nota storica
 
 C'è stato un tentativo di seconda app per Windows in C#/WinUI, con un contratto condiviso in `spec/`,
