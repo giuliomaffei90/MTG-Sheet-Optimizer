@@ -127,7 +127,6 @@ windows/           app Windows in C# (Core condiviso + interfaccia WinUI)
 scripts/           generazione testi, confronto di conformità, build di sviluppo
 AppIcon.icon       icona (documento di Icon Composer)
 build.sh           compila l'app e l'icona
-scripts/           build di sviluppo
 ```
 
 MPCFill è un progetto open source ([chilli-axe/mpc-autofill](https://github.com/chilli-axe/mpc-autofill)):
