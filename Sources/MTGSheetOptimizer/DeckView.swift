@@ -26,9 +26,7 @@ final class DeckModel {
         var title: String { copies > 1 ? "\(name) \(copy)/\(copies)" : name }
     }
 
-    var text = UserDefaults.standard.string(forKey: "deckText") ?? "" {
-        didSet { UserDefaults.standard.set(text, forKey: "deckText") }
-    }
+    var text = ""   // not persisted: every launch starts with an empty list
     var rows: [Row] = []
     var status = ""
     var busy = false
@@ -190,7 +188,8 @@ struct DeckView: View {
         .sheet(item: $picking) { pick in
             if let i = deck.rows.firstIndex(where: { $0.id == pick.row }),
                let face = pick.back ? deck.rows[i].back : deck.rows[i].front as DeckModel.Face? {
-                VariantPicker(title: deck.rows[i].title, face: face, deck: deck) { card in
+                VariantPicker(title: deck.rows[i].title, selected: face.selected?.identifier,
+                              load: { try await deck.variants(face.results) }) { card in
                     if pick.back { deck.rows[i].back?.selected = card } else { deck.rows[i].front.selected = card }
                 }
             }
@@ -232,7 +231,7 @@ private struct FaceTile: View {
     }
 }
 
-private struct Thumbnail: View {
+struct Thumbnail: View {
     let url: String?
 
     var body: some View {
@@ -248,10 +247,11 @@ private struct Thumbnail: View {
     }
 }
 
-private struct VariantPicker: View {
+/// Grid of card images to pick one from: a card's art variants, or the cardbacks in Settings.
+struct VariantPicker: View {
     let title: String
-    let face: DeckModel.Face
-    let deck: DeckModel
+    let selected: String?
+    let load: () async throws -> [MPCFill.Card]
     let onPick: (MPCFill.Card) -> Void
     @Environment(\.dismiss) private var dismiss
     @AppStorage("tileSize") private var tileSize = 150.0
@@ -262,7 +262,7 @@ private struct VariantPicker: View {
         VStack(spacing: 0) {
             HStack {
                 Text(title).font(.headline)
-                Text(tr("Variants: %d", face.results.count)).foregroundStyle(.secondary)
+                if !cards.isEmpty { Text(tr("Variants: %d", cards.count)).foregroundStyle(.secondary) }
                 Spacer()
                 Button(tr("Close")) { dismiss() }.keyboardShortcut(.cancelAction)
             }
@@ -286,7 +286,7 @@ private struct VariantPicker: View {
                                 VStack(spacing: 3) {
                                     Thumbnail(url: card.smallThumbnailUrl)
                                         .overlay {
-                                            if card.identifier == face.selected?.identifier {
+                                            if card.identifier == selected {
                                                 RoundedRectangle(cornerRadius: 6).stroke(Color.accentColor, lineWidth: 3)
                                             }
                                         }
@@ -305,7 +305,7 @@ private struct VariantPicker: View {
         }
         .frame(minWidth: 600, idealWidth: 820, minHeight: 440, idealHeight: 640)
         .task {
-            do { cards = try await deck.variants(face.results) } catch { self.error = error.localizedDescription }
+            do { cards = try await load() } catch { self.error = error.localizedDescription }
         }
     }
 }

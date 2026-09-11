@@ -16,7 +16,7 @@ enum MPCFill {
         var cardType: CardType
     }
 
-    struct Card: Decodable, Identifiable, Hashable {
+    struct Card: Codable, Identifiable, Hashable {
         let identifier: String
         let name: String
         let sourceName: String
@@ -101,6 +101,13 @@ enum MPCFill {
             out.merge(try JSONDecoder().decode(CardsResponse.self, from: data).results) { a, _ in a }
         }
         return out
+    }
+
+    private struct CardbacksResponse: Decodable { let cardbacks: [String] }
+
+    static func cardbacks(sources: [Int]) async throws -> [String] {
+        let data = try await send("2/cardbacks/", json: ["searchSettings": searchSettings(sources)])
+        return try JSONDecoder().decode(CardbacksResponse.self, from: data).cardbacks
     }
 
     private struct DFCResponse: Decodable { let dfcPairs: [String: String] }

@@ -62,6 +62,7 @@ private func url(_ name: String) -> URL { URL(fileURLWithPath: "/cards/\(name).p
     #expect(plan.pages.map(\.name) == ["backpage_A3.png", "layout_A3_001.png", "layout_A3_001_back.png", "layout_A3_LAST.png"])
     #expect(plan.pages[2].items.map { $0.0 } == [.image(url("b")), .cardBack])
     #expect(plan.pages[2].items.map { $0.1 } == [Slot(cx: 900, cy: 100, rot: 270), Slot(cx: 700, cy: 100, rot: 0)])
+    #expect(plan.pages[0].items.map { $0.1 } == [Slot(cx: 900, cy: 100, rot: 270), Slot(cx: 700, cy: 100, rot: 0)])
 }
 
 @Test func doubleSidedAsSingles() {
@@ -99,8 +100,7 @@ private func url(_ name: String) -> URL { URL(fileURLWithPath: "/cards/\(name).p
                           extra: .singles, doubleSided: .duplex, backPage: true)
     let result = try renderPlan(plan, width: layout.width, height: layout.height, output: output,
                                 masker: Masker(url: resources.appendingPathComponent("mask.png")),
-                                backs: CardBacks(back: resources.appendingPathComponent("back.jpg"),
-                                                 back90: resources.appendingPathComponent("back90.jpg")))
+                                back: files[2])
     #expect(result.pages == 1 && result.backPages == 1 && result.singles == 3)
     for name in ["layout_A4_001_back.png", "Singles/card7_alpha.png", "Singles/card7 2_alpha.png"] {
         #expect(FileManager.default.fileExists(atPath: output.appendingPathComponent(name).path))

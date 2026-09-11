@@ -173,7 +173,7 @@ struct PrintCard: Hashable {
 enum ExtraCards: String, CaseIterable { case emptySlots, singles }
 enum DoubleSidedMode: String, CaseIterable { case singles, duplex }
 
-/// What sits in a slot: a card image, or the generic card back (back.jpg / back90.jpg).
+/// What sits in a slot: a card image, or the generic card back chosen in Settings.
 enum PageItem: Hashable {
     case image(URL)
     case cardBack
@@ -190,6 +190,7 @@ struct SheetPlan {
     var pages: [PlannedPage] = []
     var singles: [URL] = []        // → Singles/
     var doubleSided: [URL] = []    // → Double Sided/
+    var needsCardBack: Bool { pages.contains { page in page.items.contains { item, _ in item == .cardBack } } }
 }
 
 func planSheets(_ cards: [PrintCard], slots: [Slot], pageWidth: Double, kind: PageKind,
@@ -205,7 +206,9 @@ func planSheets(_ cards: [PrintCard], slots: [Slot], pageWidth: Double, kind: Pa
         plan.doubleSided = doubleFaced.flatMap(\.faces)
     }
 
-    func mirrored(_ s: Slot, rot: Double) -> Slot { Slot(cx: pageWidth - s.cx, cy: s.cy, rot: rot) }
+    // The sheet flips on its long edge: x is mirrored and every back turns the opposite way (90° → 270°),
+    // so it's upright when the cut card is flipped.
+    func behind(_ s: Slot) -> Slot { Slot(cx: pageWidth - s.cx, cy: s.cy, rot: snapAngle(-s.rot)) }
     var sheetsWithoutBack = false
     var number = 0
     for start in stride(from: 0, to: onPages.count, by: n) {
@@ -219,12 +222,10 @@ func planSheets(_ cards: [PrintCard], slots: [Slot], pageWidth: Double, kind: Pa
         plan.pages.append(PlannedPage(name: name + ".png", isBack: false,
                                       items: zip(chunk, slots).map { (.image($0.front), $1) }))
         if chunk.contains(where: { $0.back != nil }) {
-            // The sheet flips on its long edge: x is mirrored, and a double-faced back turns the opposite way
-            // (90° → 270°) so it's upright when the cut card is flipped. Other slots get the generic back only
-            // when the back page is on.
+            // Other slots get the generic back only when the back page is on.
             let backs: [(PageItem, Slot)] = zip(chunk, slots).compactMap { card, slot in
-                if let back = card.back { return (.image(back), mirrored(slot, rot: snapAngle(-slot.rot))) }
-                return backPage ? (.cardBack, mirrored(slot, rot: slot.rot)) : nil
+                if let back = card.back { return (.image(back), behind(slot)) }
+                return backPage ? (.cardBack, behind(slot)) : nil
             }
             plan.pages.append(PlannedPage(name: name + "_back.png", isBack: true, items: backs))
         } else if backPage {
@@ -234,24 +235,12 @@ func planSheets(_ cards: [PrintCard], slots: [Slot], pageWidth: Double, kind: Pa
     if sheetsWithoutBack {
         // One back page serves every sheet without double-faced cards.
         plan.pages.insert(PlannedPage(name: "backpage_\(kind.rawValue).png", isBack: true,
-                                      items: slots.map { (.cardBack, mirrored($0, rot: $0.rot)) }), at: 0)
+                                      items: slots.map { (.cardBack, behind($0)) }), at: 0)
     }
     return plan
 }
 
 // MARK: - Rendering
-
-struct CardBacks {
-    var back: URL?
-    var back90: URL?
-
-    static var bundled: CardBacks { CardBacks(back: resource("back.jpg"), back90: resource("back90.jpg")) }
-
-    /// back90.jpg is the back turned 180°, used on 90° slots (the Python tool's convention).
-    func url(for slot: Slot) -> URL? {
-        slot.rot.truncatingRemainder(dividingBy: 180) == 90 ? back90 ?? back : back
-    }
-}
 
 struct RenderResult {
     var pages = 0, backPages = 0, singles = 0, doubleSided = 0
@@ -278,9 +267,9 @@ func exportSingles(_ files: [URL], to dir: URL, masker: Masker) throws -> Int {
     return files.count
 }
 
-func renderPlan(_ plan: SheetPlan, width: Int, height: Int, output: URL, masker: Masker, backs: CardBacks,
+func renderPlan(_ plan: SheetPlan, width: Int, height: Int, output: URL, masker: Masker, back: URL?,
                 progress: (String) -> Void = { _ in }) throws -> RenderResult {
-    var genericBacks: [URL: CGImage] = [:]   // the same back sits on every back page: mask it once
+    let cardBack = try back.map { try masker.card($0) }   // the same back sits on every back page: mask it once
     var result = RenderResult()
     for (i, page) in plan.pages.enumerated() {
         progress("\(i + 1)/\(plan.pages.count)")
@@ -290,9 +279,7 @@ func renderPlan(_ plan: SheetPlan, width: Int, height: Int, output: URL, masker:
             case .image(let url):
                 placements.append((try masker.card(url), slot))
             case .cardBack:
-                guard let url = backs.url(for: slot) else { continue }
-                if genericBacks[url] == nil { genericBacks[url] = try masker.card(url) }
-                placements.append((genericBacks[url]!, slot))
+                if let cardBack { placements.append((cardBack, slot)) }
             }
         }
         try savePNG(renderPage(width: width, height: height, cardSize: masker.cardSize, placements),
@@ -319,7 +306,7 @@ actor PreviewCache {
 }
 
 /// Every planned page at `scale` of full size, for the live preview. Throws CancellationError when superseded.
-func previewPages(_ plan: SheetPlan, width: Int, height: Int, scale: Double, masker: Masker, backs: CardBacks) async throws -> [CGImage] {
+func previewPages(_ plan: SheetPlan, width: Int, height: Int, scale: Double, masker: Masker, back: URL?) async throws -> [CGImage] {
     let cardHeight = max(1, Int(Double(masker.mask.height) * scale))
     var pages: [CGImage] = []
     for page in plan.pages {
@@ -329,7 +316,7 @@ func previewPages(_ plan: SheetPlan, width: Int, height: Int, scale: Double, mas
             let url: URL?
             switch item {
             case .image(let u): url = u
-            case .cardBack: url = backs.url(for: slot)
+            case .cardBack: url = back
             }
             if let url { placements.append((try await PreviewCache.shared.card(url, masker: masker, height: cardHeight), slot)) }
         }

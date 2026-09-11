@@ -31,15 +31,15 @@ In alto scegli come impaginare. Sotto, l'anteprima mostra dal vivo, in bassa ris
 che verranno generati; cambia appena modifichi un'opzione o il layout.
 
 - **Layout**: A4 (6 carte) o A3 (14 carte), nelle posizioni definite nell'editor del layout.
-- **Esporta retro**: aggiunge una pagina con `back.jpg` in ogni posto, specchiata in orizzontale per la
-  stampa fronte-retro. Le carte ruotate di 90° usano `back90.jpg`.
+- **Esporta retro**: aggiunge una pagina con il retro delle carte (scelto nelle Impostazioni) in ogni posto,
+  specchiata in orizzontale per la stampa fronte-retro.
 - **Carte in più**, per le carte che non riempiono l'ultimo foglio: *Ultima pagina con spazi vuoti*
   oppure *Come singole* (nella cartella `Singles/`).
 - **Fronte-retro**, per le carte con due facce:
   - *Come singole*: le due facce vengono esportate rifilate in `Double Sided/`;
   - *Pagine fronte/retro*: le facce anteriori vanno sui fogli insieme alle altre carte (per prime, così
     servono meno pagine di retri) e ogni foglio che ne contiene riceve una sua pagina di retri, specchiata
-    per la stampa fronte-retro sul lato lungo. Nei posti delle altre carte va `back.jpg` solo se
+    per la stampa fronte-retro sul lato lungo. Nei posti delle altre carte va il retro delle carte solo se
     *Esporta retro* è attivo; altrimenti restano vuoti.
 - **Output**: la cartella dove scrivere i file. **Render** li genera.
 
@@ -63,6 +63,8 @@ così nessuna sovrascrive l'altra.
 Da **MTG Sheet Optimizer → Impostazioni…** (⌘,):
 
 - **Lingua**: inglese o italiano. Al primo avvio l'app è in inglese; il cambio è immediato.
+- **Retro delle carte**: il retro usato da *Esporta retro*, scelto tra i cardback di MPCFill. Il predefinito
+  è ProxyBack di OffPlanetVibes (1240 DPI).
 - **Modifica layout…** apre l'editor dei due layout:
   - clic su una carta per selezionarla, `⇧`+clic per aggiungerne o toglierne altre, clic nel vuoto o
     `Esc` per deselezionare;
@@ -106,8 +108,8 @@ MPCFILL_LIVE=1 swift test
 ## Personalizzare
 
 I layout modificati finiscono in `~/Library/Application Support/MTG Sheet Optimizer/`.
-Ogni file che metti lì ha la precedenza su quello incluso nell'app. Per esempio puoi mettere un tuo
-`back.jpg` / `back90.jpg`, oppure un `Layout A4.png` diverso come sfondo dell'editor.
+Ogni file che metti lì ha la precedenza su quello incluso nell'app. Per esempio puoi mettere un
+`Layout A4.png` diverso come sfondo dell'editor.
 
 ## Struttura
 
@@ -120,7 +122,7 @@ Sources/MTGSheetOptimizer/
   Render.swift     piano dei fogli, rifilatura, render a piena risoluzione e anteprima
   Settings.swift   impostazioni e traduzioni
 Tests/             test su lista, piano dei fogli, fronte-retro, rotazioni e 300 DPI
-Resources/         mask.png, sfondi e JSON dei layout, dorsi
+Resources/         mask.png, sfondi e JSON dei layout
 AppIcon.icon       icona (documento di Icon Composer)
 build.sh           compila l'app e l'icona
 scripts/           build di sviluppo

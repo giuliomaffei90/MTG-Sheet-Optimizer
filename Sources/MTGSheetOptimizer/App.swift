@@ -28,6 +28,9 @@ struct MTGSheetOptimizerApp: App {
         Window(tr("Layout editor"), id: "layout-editor") {
             LayoutEditorView()
         }
+        Window(tr("Card back"), id: "card-backs") {
+            CardBackPicker()
+        }
         Settings { SettingsView() }
     }
 }
@@ -82,17 +85,17 @@ final class Model {
             return
         }
         guard !output.isEmpty else { alertMessage = tr("Choose an output folder."); return }
-        let backs = CardBacks.bundled
-        let needsBack = plan.pages.contains { page in page.items.contains { item, _ in item == .cardBack } }
-        guard !needsBack || backs.back != nil else { alertMessage = tr("Back page is on but back.jpg is missing."); return }
+        let cardBack = plan.needsCardBack ? CardBack.current : nil
 
         let outputURL = URL(fileURLWithPath: output)
         rendering = true
         status = tr("Rendering…")
         Task.detached {
             do {
+                var back: URL?
+                if let cardBack { back = try await MPCFill.download(cardBack, to: imageCacheDir) }
                 let result = try renderPlan(plan, width: Int(size.width), height: Int(size.height), output: outputURL,
-                                            masker: masker, backs: backs) { msg in
+                                            masker: masker, back: back) { msg in
                     Task { @MainActor in self.status = msg }
                 }
                 await MainActor.run {
@@ -120,6 +123,7 @@ private struct PreviewKey: Hashable {
     var doubleSided: DoubleSidedMode
     var cards: [PrintCard]
     var slots: [Slot]
+    var back: String
 }
 
 private struct PreviewPage: Identifiable {
@@ -135,6 +139,7 @@ struct OutputView: View {
     @AppStorage("extraCards") private var extra = ExtraCards.emptySlots
     @AppStorage("doubleSided") private var doubleSided = DoubleSidedMode.singles
     @AppStorage("outputPath") private var outputPath = ""
+    @AppStorage(CardBack.key) private var cardBackData = Data()
     @State private var previews: [PreviewPage] = []
 
     private var store: LayoutStore { .shared }
@@ -212,8 +217,8 @@ struct OutputView: View {
             }
         }
         .task(id: PreviewKey(kind: kind, backPage: backPage, extra: extra, doubleSided: doubleSided,
-                             cards: model.cards, slots: slots)) {
-            await refreshPreview(plan)
+                             cards: model.cards, slots: slots, back: CardBack.card(from: cardBackData).identifier)) {
+            await refreshPreview(plan, back: CardBack.card(from: cardBackData))
         }
         .alert(tr("Done"),
                isPresented: Binding(get: { model.finishedOutput != nil }, set: { if !$0 { model.finishedOutput = nil } }),
@@ -231,15 +236,17 @@ struct OutputView: View {
     }
 
     /// Low-resolution pages drawn from the same plan the export uses. A newer key cancels this run.
-    private func refreshPreview(_ plan: SheetPlan) async {
+    private func refreshPreview(_ plan: SheetPlan, back cardBack: MPCFill.Card) async {
         guard let masker = store.masker, let size = store.size(kind), !model.cards.isEmpty else {
             previews = []
             return
         }
         try? await Task.sleep(for: .milliseconds(120))   // coalesce slot drags from the layout editor
+        var back: URL?
+        if plan.needsCardBack { back = try? await MPCFill.download(cardBack, to: imageCacheDir) }
         guard !Task.isCancelled,
               let images = try? await previewPages(plan, width: Int(size.width), height: Int(size.height),
-                                                   scale: 520 / size.height, masker: masker, backs: .bundled)
+                                                   scale: 520 / size.height, masker: masker, back: back)
         else { return }
         previews = zip(plan.pages, images).map { PreviewPage(name: $0.name, image: $1) }
     }

@@ -37,6 +37,7 @@ func liveSearchAndDownload() async throws {
     let card = try #require(try await MPCFill.cards(ids)[ids[0]])
     #expect(card.name == "Abrade")
     #expect(try await MPCFill.dfcPairs()["delver of secrets"] == "insectile aberration")
+    #expect(try await MPCFill.cardbacks(sources: try await MPCFill.sourceIDs()).contains(CardBack.proxyBack.identifier))
 
     let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: dir) }
