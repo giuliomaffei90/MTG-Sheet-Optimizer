@@ -7,7 +7,7 @@ Il lavoro è diviso in due fasi:
 
 1. **Mazzo**: incolli la lista (per esempio l'export di Moxfield), l'app cerca le carte su
    [MPCFill](https://mpcfill.com) e per ognuna scegli la variante di art che preferisci.
-2. **Impaginazione**: le carte scelte vengono rifilate e impaginate sui fogli.
+2. **Impaginazione**: scegli come impaginare, controlli l'anteprima dei fogli ed esporti.
 
 ## Fase 1: Mazzo
 
@@ -20,46 +20,61 @@ Il lavoro è diviso in due fasi:
 - Cliccando una carta si aprono tutte le sue varianti, con fonte, DPI e peso del file.
 - Lo slider in basso regola la grandezza delle carte nella griglia e nella scelta delle varianti.
 - Le carte fronte-retro (riconosciute da MPCFill o scritte come `Fronte // Retro`) mostrano anche la
-  faccia posteriore. Entrambe le facce finiscono tra le carte fronte-retro, esportate come singole.
+  faccia posteriore, con la sua variante.
 - **Scarica e impagina** scarica le immagini direttamente da Google, a 2244 px di altezza (il doppio di
   quanto serve a 300 DPI), e passa alla fase 2. Le immagini restano in
   `~/Library/Caches/MTG Sheet Optimizer/`, così i download successivi della stessa variante sono istantanei.
 
 ## Fase 2: Impaginazione
 
-- **Input**: il mazzo scaricato nella fase 1, oppure una cartella di immagini ("Usa una cartella").
-  Dalla cartella le carte sono prese in ordine alfabetico, e quelle nella sottocartella `Double Sided/`
-  sono trattate come fronte-retro.
-- **Rifila le carte** con `mask.png`: ogni immagine viene portata a 69,6 × 95 mm e ritagliata sulla
-  carta vera (63,5 × 88,9 mm, angoli arrotondati).
-- **Impagina** 6 carte su A4 o 14 su A3, nelle posizioni e rotazioni del layout.
-- **Ultima pagina incompleta**: puoi esportare le carte rimanenti singolarmente oppure una pagina
-  con i posti vuoti.
-- **Pagina dei dorsi** (opzionale): una pagina con `back.jpg` in ogni posto, specchiata in orizzontale
-  per la stampa fronte-retro. Le carte ruotate di 90° usano `back90.jpg`.
+In alto scegli come impaginare. Sotto, l'anteprima mostra dal vivo, in bassa risoluzione, tutti i fogli
+che verranno generati; cambia appena modifichi un'opzione o il layout.
 
-Comandi dell'anteprima:
-- trascina per spostare il posto più vicino al punto in cui clicchi;
-- `r` / `⇧R` ruotano di 45° a sinistra / a destra, `⌫` azzera la rotazione;
-- "Reimposta slot" rimette i posti su una griglia, "Salva layout" memorizza le posizioni.
+- **Layout**: A4 (6 carte) o A3 (14 carte), nelle posizioni definite nell'editor del layout.
+- **Esporta retro**: aggiunge una pagina con `back.jpg` in ogni posto, specchiata in orizzontale per la
+  stampa fronte-retro. Le carte ruotate di 90° usano `back90.jpg`.
+- **Carte in più**, per le carte che non riempiono l'ultimo foglio: *Ultima pagina con spazi vuoti*
+  oppure *Come singole* (nella cartella `Singles/`).
+- **Fronte-retro**, per le carte con due facce:
+  - *Come singole*: le due facce vengono esportate rifilate in `Double Sided/`;
+  - *Pagine fronte/retro*: le facce anteriori vanno sui fogli insieme alle altre carte (per prime, così
+    servono meno pagine di retri) e ogni foglio che ne contiene riceve una sua pagina di retri, specchiata
+    per la stampa fronte-retro sul lato lungo. Nei posti delle altre carte va `back.jpg` solo se
+    *Esporta retro* è attivo; altrimenti restano vuoti.
+- **Output**: la cartella dove scrivere i file. **Render** li genera.
 
-File generati nella cartella di output:
+Ogni carta viene rifilata con `mask.png`: l'immagine viene portata a 69,6 × 95 mm e ritagliata sulla carta
+vera (63,5 × 88,9 mm, angoli arrotondati).
 
 | File | Contenuto |
 |---|---|
-| `layout_A4_001.png`, `002`… | pagine complete |
-| `layout_A4_LAST.png` | ultima pagina con posti vuoti |
-| `Singles/*_alpha.png` | carte rimanenti esportate singolarmente |
-| `Double Sided/*_alpha.png` | carte fronte-retro rifilate |
-| `backpage_A4.png` | pagina dei dorsi |
+| `layout_A4_001.png`, `002`… | fogli completi |
+| `layout_A4_001_back.png` | retri del foglio 001 (se contiene carte fronte-retro) |
+| `layout_A4_LAST.png` | ultimo foglio con posti vuoti |
+| `backpage_A4.png` | retri per tutti gli altri fogli (con *Esporta retro*) |
+| `Singles/*_alpha.png` | carte in più esportate singolarmente |
+| `Double Sided/*_alpha.png` | facce delle carte fronte-retro, se esportate come singole |
 
 Le copie multiple della stessa carta esportate come singole prendono un numero (`Island 2_alpha.png`…),
 così nessuna sovrascrive l'altra.
 
 ## Impostazioni
 
-Da **MTG Sheet Optimizer → Impostazioni…** (⌘,) scegli la lingua dell'interfaccia: inglese o italiano.
-Al primo avvio l'app è in inglese. Il cambio è immediato, senza riavviare.
+Da **MTG Sheet Optimizer → Impostazioni…** (⌘,):
+
+- **Lingua**: inglese o italiano. Al primo avvio l'app è in inglese; il cambio è immediato.
+- **Modifica layout…** apre l'editor dei due layout:
+  - clic su una carta per selezionarla, `⇧`+clic per aggiungerne o toglierne altre, clic nel vuoto o
+    `Esc` per deselezionare;
+  - trascina per spostare le carte selezionate, le frecce le spostano di 1 px (`⇧`+freccia: 10 px);
+  - *Allinea orizzontalmente* / *Allinea verticalmente* mettono le carte selezionate sulla stessa riga /
+    colonna della prima selezionata;
+  - *Distribuisci orizzontalmente* / *verticalmente* (almeno 3 carte) lasciano ferme le due più esterne e
+    mettono quelle in mezzo a distanza uguale, da centro a centro;
+  - `r` / `⇧R` ruotano la selezione di 45° a sinistra / a destra, `⌫` azzera la rotazione;
+  - *Reimposta slot* rimette i posti su una griglia, *Carica layout…* importa un JSON.
+
+  Ogni modifica viene salvata subito e l'anteprima della fase 2 si aggiorna mentre sposti le carte.
 
 ## Requisiti
 
@@ -90,19 +105,21 @@ MPCFILL_LIVE=1 swift test
 
 ## Personalizzare
 
-I layout salvati finiscono in `~/Library/Application Support/MTG Sheet Optimizer/`.
+I layout modificati finiscono in `~/Library/Application Support/MTG Sheet Optimizer/`.
 Ogni file che metti lì ha la precedenza su quello incluso nell'app. Per esempio puoi mettere un tuo
-`back.jpg` / `back90.jpg`, oppure un `Layout A4.png` diverso come sfondo dell'anteprima.
+`back.jpg` / `back90.jpg`, oppure un `Layout A4.png` diverso come sfondo dell'editor.
 
 ## Struttura
 
 ```
 Sources/MTGSheetOptimizer/
-  App.swift        finestra, selettore delle fasi, fase 2 (impaginazione)
+  App.swift        finestre, selettore delle fasi, fase 2 (opzioni, anteprima, export)
   DeckView.swift   fase 1: lista, griglia delle carte, scelta delle varianti, download
+  Layout.swift     layout A4/A3 e il loro editor
   MPCFill.swift    client dell'API di mpcfill.com e lettura della lista
-  Render.swift     rifilatura, impaginazione, formato dei layout JSON
-Tests/             test su lista, impaginazione, rotazioni e 300 DPI
+  Render.swift     piano dei fogli, rifilatura, render a piena risoluzione e anteprima
+  Settings.swift   impostazioni e traduzioni
+Tests/             test su lista, piano dei fogli, fronte-retro, rotazioni e 300 DPI
 Resources/         mask.png, sfondi e JSON dei layout, dorsi
 AppIcon.icon       icona (documento di Icon Composer)
 build.sh           compila l'app e l'icona

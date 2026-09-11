@@ -1,11 +1,5 @@
 import SwiftUI
 
-/// Images picked in phase 1, handed to the layout phase.
-struct DeckFiles {
-    var cards: [URL]         // one entry per copy, in deck order
-    var doubleSided: [URL]   // both faces of double-faced cards, exported as singles
-}
-
 let imageCacheDir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
     .appendingPathComponent("MTG Sheet Optimizer", isDirectory: true)
 
@@ -75,7 +69,7 @@ final class DeckModel {
             }
             rows = newRows
             let missing = rows.filter { $0.front.selected == nil && $0.copy == 1 }.map(\.name)
-            status = missing.isEmpty ? tr("Found all %d cards.", entries.count)
+            status = missing.isEmpty ? tr("Cards found: %d.", entries.count)
                                      : tr("Not found: %@", missing.joined(separator: ", "))
         } catch {
             status = tr("Error: %@", error.localizedDescription)
@@ -94,8 +88,8 @@ final class DeckModel {
         return cardCache
     }
 
-    /// Downloads the chosen variants (4 at a time) and returns one entry per card.
-    func download() async -> DeckFiles? {
+    /// Downloads the chosen variants (4 at a time) and returns one print card per row.
+    func download() async -> [PrintCard]? {
         busy = true
         defer { busy = false }
         let rows = chosen
@@ -119,14 +113,12 @@ final class DeckModel {
             status = tr("Error: %@", error.localizedDescription)
             return nil
         }
-
-        var out = DeckFiles(cards: [], doubleSided: [])
-        for row in rows {
-            let faces = [row.front.selected, row.back?.selected].compactMap { $0.flatMap { files[$0.identifier] } }
-            if row.back == nil { out.cards += faces } else { out.doubleSided += faces }
-        }
         status = tr("Downloaded %d images.", unique.count)
-        return out
+        return rows.compactMap { row in
+            row.front.selected.flatMap { files[$0.identifier] }.map { front in
+                PrintCard(front: front, back: row.back?.selected.flatMap { files[$0.identifier] })
+            }
+        }
     }
 }
 
@@ -134,7 +126,7 @@ final class DeckModel {
 
 struct DeckView: View {
     @Bindable var deck: DeckModel
-    let onReady: (DeckFiles) -> Void
+    let onReady: ([PrintCard]) -> Void
     @State private var picking: Pick?
     @AppStorage("tileSize") private var tileSize = 150.0
 
@@ -185,9 +177,9 @@ struct DeckView: View {
                         .frame(width: 120)
                         .help(tr("Card size"))
                     Image(systemName: "square.grid.2x2").foregroundStyle(.secondary)
-                    Text(tr("%d cards, %d double-sided", deck.pageCards, deck.doubleSidedCards))
+                    Text(tr("Cards: %d · Double-sided: %d", deck.pageCards, deck.doubleSidedCards))
                     Button(tr("Download and lay out")) {
-                        Task { if let files = await deck.download() { onReady(files) } }
+                        Task { if let cards = await deck.download() { onReady(cards) } }
                     }
                     .disabled(deck.busy || deck.pageCards + deck.doubleSidedCards == 0)
                 }
@@ -223,7 +215,7 @@ private struct FaceTile: View {
                 .font(.caption.bold())
                 .lineLimit(1)
             if let face, let card = face.selected {
-                Text(tr("%@ · %d DPI · %d variants", card.sourceName, card.dpi, face.results.count))
+                Text(tr("%@ · %d DPI · %d var.", card.sourceName, card.dpi, face.results.count))
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -270,7 +262,7 @@ private struct VariantPicker: View {
         VStack(spacing: 0) {
             HStack {
                 Text(title).font(.headline)
-                Text(tr("%d variants", face.results.count)).foregroundStyle(.secondary)
+                Text(tr("Variants: %d", face.results.count)).foregroundStyle(.secondary)
                 Spacer()
                 Button(tr("Close")) { dismiss() }.keyboardShortcut(.cancelAction)
             }
@@ -281,7 +273,7 @@ private struct VariantPicker: View {
                     .foregroundStyle(.red)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if cards.isEmpty {
-                ProgressView(tr("Loading %d variants…", face.results.count))
+                ProgressView(tr("Loading variants…"))
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 ScrollView {

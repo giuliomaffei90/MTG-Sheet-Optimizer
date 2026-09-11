@@ -5,7 +5,6 @@ import UniformTypeIdentifiers
 
 /// Output is always 300 DPI: mask.png is 822x1122 px = 69.6x95 mm at 300 DPI.
 let outputDPI = 300.0
-let validExtensions: Set<String> = ["png", "jpg", "jpeg", "tif", "tiff", "webp"]
 let doubleSidedDirName = "Double Sided"
 let singlesDirName = "Singles"
 
@@ -22,7 +21,7 @@ enum PageKind: String, CaseIterable {
 }
 
 /// Card centre in page pixels; rotation in degrees clockwise, multiple of 45.
-struct Slot: Equatable {
+struct Slot: Hashable {
     var cx: Double
     var cy: Double
     var rot: Double
@@ -42,13 +41,27 @@ func defaultSlots(_ kind: PageKind, width: Double, height: Double) -> [Slot] {
     }
 }
 
-func nearestSlot(_ slots: [Slot], to p: CGPoint) -> Int? {
-    slots.indices.min { a, b in
-        hypot(slots[a].cx - p.x, slots[a].cy - p.y) < hypot(slots[b].cx - p.x, slots[b].cy - p.y)
+/// Topmost slot whose card, rotated with the slot, contains `p`.
+func slotAt(_ slots: [Slot], _ p: CGPoint, cardSize: CGSize) -> Int? {
+    slots.indices.last { i in
+        let s = slots[i], a = s.rot * .pi / 180
+        let dx = p.x - s.cx, dy = p.y - s.cy
+        // Undo the slot's clockwise rotation (y points down).
+        let lx = dx * cos(a) + dy * sin(a), ly = -dx * sin(a) + dy * cos(a)
+        return abs(lx) <= cardSize.width / 2 && abs(ly) <= cardSize.height / 2
     }
 }
 
-// MARK: - Layout JSON (same format as the Python tool; old "dpi"/"background" keys are ignored)
+/// Spaces the cards at `indices` evenly, centre to centre, between the outermost two along `axis`.
+func distribute(_ slots: inout [Slot], _ indices: [Int], along axis: WritableKeyPath<Slot, Double>) {
+    let sorted = indices.sorted { slots[$0][keyPath: axis] < slots[$1][keyPath: axis] }
+    guard sorted.count > 2, let first = sorted.first, let last = sorted.last else { return }
+    let start = slots[first][keyPath: axis]
+    let step = (slots[last][keyPath: axis] - start) / Double(sorted.count - 1)
+    for (k, i) in sorted.enumerated() { slots[i][keyPath: axis] = start + Double(k) * step }
+}
+
+// MARK: - Layout JSON (same format as the Python tool; old "dpi"/"background"/"export_back_page" keys are ignored)
 
 struct LayoutFile: Codable {
     struct NormalizedSlot: Codable {
@@ -57,12 +70,10 @@ struct LayoutFile: Codable {
         var rot: Double?
     }
     var layoutKind: String?
-    var exportBackPage: Bool?
     var slots: [NormalizedSlot]
 
-    init(kind: PageKind, exportBackPage: Bool, slots: [Slot], width: Double, height: Double) {
+    init(kind: PageKind, slots: [Slot], width: Double, height: Double) {
         layoutKind = kind.rawValue
-        self.exportBackPage = exportBackPage
         self.slots = slots.map { NormalizedSlot(cx: $0.cx / width, cy: $0.cy / height, rot: snapAngle($0.rot)) }
     }
 
@@ -87,11 +98,15 @@ struct LayoutFile: Codable {
 
 // MARK: - Images
 
-func loadImage(_ url: URL) throws -> CGImage {
-    guard let src = CGImageSourceCreateWithURL(url as CFURL, nil),
-          let img = CGImageSourceCreateImageAtIndex(src, 0, nil)
-    else { throw RenderError(tr("Can't read %@", url.lastPathComponent)) }
-    return img
+/// `maxPixelSize` decodes a small copy, much faster for previews.
+func loadImage(_ url: URL, maxPixelSize: Int? = nil) throws -> CGImage {
+    guard let src = CGImageSourceCreateWithURL(url as CFURL, nil) else { throw RenderError(tr("Can't read %@", url.lastPathComponent)) }
+    let image = maxPixelSize.map {
+        CGImageSourceCreateThumbnailAtIndex(src, 0, [kCGImageSourceCreateThumbnailFromImageAlways: true,
+                                                     kCGImageSourceThumbnailMaxPixelSize: $0] as CFDictionary)
+    } ?? CGImageSourceCreateImageAtIndex(src, 0, nil)
+    guard let image else { throw RenderError(tr("Can't read %@", url.lastPathComponent)) }
+    return image
 }
 
 func makeContext(_ width: Int, _ height: Int) -> CGContext {
@@ -113,71 +128,140 @@ func savePNG(_ img: CGImage, to url: URL) throws {
 
 struct Masker {
     let mask: CGImage
+    var cardSize: CGSize { CGSize(width: mask.width, height: mask.height) }
 
     init(url: URL) throws { mask = try loadImage(url) }
 
-    /// Card stretched to the mask size, alpha taken from the mask.
-    func card(_ url: URL) throws -> CGImage {
-        let ctx = makeContext(mask.width, mask.height)
-        let rect = CGRect(x: 0, y: 0, width: mask.width, height: mask.height)
-        ctx.draw(try loadImage(url), in: rect)
+    /// Card stretched to the mask size, alpha taken from the mask; `height` makes a small copy for previews.
+    func card(_ url: URL, height: Int? = nil) throws -> CGImage {
+        let h = height ?? mask.height
+        let w = mask.width * h / mask.height
+        let ctx = makeContext(w, h)
+        let rect = CGRect(x: 0, y: 0, width: w, height: h)
+        ctx.draw(try loadImage(url, maxPixelSize: height.map { $0 * 2 }), in: rect)
         ctx.setBlendMode(.destinationIn)
         ctx.draw(mask, in: rect)
         return ctx.makeImage()!
     }
 }
 
-/// Slots are in top-left page coordinates; CoreGraphics is bottom-left, so y is flipped here.
-func renderPage(width: Int, height: Int, _ placements: [(CGImage, Slot)]) -> CGImage {
-    let ctx = makeContext(width, height)
+/// Slots are in full-resolution top-left page coordinates; CoreGraphics is bottom-left, so y is flipped.
+/// `scale` < 1 draws a smaller copy of the page.
+func renderPage(width: Int, height: Int, scale: Double = 1, cardSize: CGSize, _ placements: [(CGImage, Slot)]) -> CGImage {
+    let ctx = makeContext(max(1, Int(Double(width) * scale)), max(1, Int(Double(height) * scale)))
+    ctx.scaleBy(x: scale, y: scale)
     for (img, slot) in placements {
         ctx.saveGState()
         ctx.translateBy(x: slot.cx.rounded(), y: Double(height) - slot.cy.rounded())
         ctx.rotate(by: -slot.rot * .pi / 180)
-        ctx.draw(img, in: CGRect(x: -Double(img.width) / 2, y: -Double(img.height) / 2,
-                                 width: Double(img.width), height: Double(img.height)))
+        ctx.draw(img, in: CGRect(x: -cardSize.width / 2, y: -cardSize.height / 2,
+                                 width: cardSize.width, height: cardSize.height))
         ctx.restoreGState()
     }
     return ctx.makeImage()!
 }
 
-func listImages(_ dir: URL) -> [URL] {
-    let items = (try? FileManager.default.contentsOfDirectory(
-        at: dir, includingPropertiesForKeys: [.isRegularFileKey], options: .skipsHiddenFiles)) ?? []
-    return items
-        .filter { validExtensions.contains($0.pathExtension.lowercased()) }
-        .filter { (try? $0.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true }
-        .sorted { $0.lastPathComponent.lowercased() < $1.lastPathComponent.lowercased() }
+// MARK: - Sheet plan
+
+/// One card to print; `back` is the other face of a double-faced card.
+struct PrintCard: Hashable {
+    var front: URL
+    var back: URL? = nil
+    var faces: [URL] { [front] + (back.map { [$0] } ?? []) }
 }
 
-// MARK: - Render job
+enum ExtraCards: String, CaseIterable { case emptySlots, singles }
+enum DoubleSidedMode: String, CaseIterable { case singles, duplex }
 
-enum RemainderAction { case singles, onePage }
+/// What sits in a slot: a card image, or the generic card back (back.jpg / back90.jpg).
+enum PageItem: Hashable {
+    case image(URL)
+    case cardBack
+}
 
-struct RenderJob {
-    var kind: PageKind
-    var slots: [Slot]
-    var pageWidth: Int
-    var pageHeight: Int
-    var cards: [URL]          // one entry per copy, placed on pages in order
-    var doubleSided: [URL]    // exported as singles only
-    var output: URL
-    var back: URL? = nil
-    var back90: URL? = nil
-    var remainder: RemainderAction = .onePage
+struct PlannedPage {
+    var name: String
+    var isBack: Bool
+    var items: [(PageItem, Slot)]
+}
+
+/// Every file an export writes, in print order. Rendering and the live preview both draw this.
+struct SheetPlan {
+    var pages: [PlannedPage] = []
+    var singles: [URL] = []        // → Singles/
+    var doubleSided: [URL] = []    // → Double Sided/
+}
+
+func planSheets(_ cards: [PrintCard], slots: [Slot], pageWidth: Double, kind: PageKind,
+                extra: ExtraCards, doubleSided: DoubleSidedMode, backPage: Bool) -> SheetPlan {
+    var plan = SheetPlan()
+    let n = slots.count
+    guard n > 0 else { return plan }
+    let doubleFaced = cards.filter { $0.back != nil }
+    var onPages = cards.filter { $0.back == nil }
+    if doubleSided == .duplex {
+        onPages = doubleFaced + onPages   // grouped first, so fewer sheets need a back page of their own
+    } else {
+        plan.doubleSided = doubleFaced.flatMap(\.faces)
+    }
+
+    func mirrored(_ s: Slot, rot: Double) -> Slot { Slot(cx: pageWidth - s.cx, cy: s.cy, rot: rot) }
+    var sheetsWithoutBack = false
+    var number = 0
+    for start in stride(from: 0, to: onPages.count, by: n) {
+        let chunk = Array(onPages[start..<min(start + n, onPages.count)])
+        if chunk.count < n && extra == .singles {
+            plan.singles += chunk.flatMap(\.faces)
+            continue
+        }
+        number += 1
+        let name = "layout_\(kind.rawValue)_" + (chunk.count < n ? "LAST" : String(format: "%03d", number))
+        plan.pages.append(PlannedPage(name: name + ".png", isBack: false,
+                                      items: zip(chunk, slots).map { (.image($0.front), $1) }))
+        if chunk.contains(where: { $0.back != nil }) {
+            // The sheet flips on its long edge: x is mirrored, and a double-faced back turns the opposite way
+            // (90° → 270°) so it's upright when the cut card is flipped. Other slots get the generic back only
+            // when the back page is on.
+            let backs: [(PageItem, Slot)] = zip(chunk, slots).compactMap { card, slot in
+                if let back = card.back { return (.image(back), mirrored(slot, rot: snapAngle(-slot.rot))) }
+                return backPage ? (.cardBack, mirrored(slot, rot: slot.rot)) : nil
+            }
+            plan.pages.append(PlannedPage(name: name + "_back.png", isBack: true, items: backs))
+        } else if backPage {
+            sheetsWithoutBack = true
+        }
+    }
+    if sheetsWithoutBack {
+        // One back page serves every sheet without double-faced cards.
+        plan.pages.insert(PlannedPage(name: "backpage_\(kind.rawValue).png", isBack: true,
+                                      items: slots.map { (.cardBack, mirrored($0, rot: $0.rot)) }), at: 0)
+    }
+    return plan
+}
+
+// MARK: - Rendering
+
+struct CardBacks {
+    var back: URL?
+    var back90: URL?
+
+    static var bundled: CardBacks { CardBacks(back: resource("back.jpg"), back90: resource("back90.jpg")) }
+
+    /// back90.jpg is the back turned 180°, used on 90° slots (the Python tool's convention).
+    func url(for slot: Slot) -> URL? {
+        slot.rot.truncatingRemainder(dividingBy: 180) == 90 ? back90 ?? back : back
+    }
 }
 
 struct RenderResult {
-    var pages = 0, singles = 0, doubleSided = 0
-    var lastPage = false, backPage = false
+    var pages = 0, backPages = 0, singles = 0, doubleSided = 0
 
     func summary(_ kind: PageKind) -> String {
         var parts: [String] = []
-        if pages > 0 { parts.append(tr("%d %@ pages", pages, kind.rawValue)) }
-        if lastPage { parts.append(tr("1 last page with empty slots")) }
-        if singles > 0 { parts.append(tr("%d singles in '%@'", singles, singlesDirName)) }
-        if doubleSided > 0 { parts.append(tr("%d cut cards in '%@'", doubleSided, doubleSidedDirName)) }
-        if backPage { parts.append(tr("1 %@ back page", kind.rawValue)) }
+        if pages > 0 { parts.append(tr("%@ pages: %d", kind.rawValue, pages)) }
+        if backPages > 0 { parts.append(tr("Back pages: %d", backPages)) }
+        if singles > 0 { parts.append(tr("Singles in '%@': %d", singlesDirName, singles)) }
+        if doubleSided > 0 { parts.append(tr("Cut cards in '%@': %d", doubleSidedDirName, doubleSided)) }
         return tr("Done: %@.", parts.isEmpty ? tr("nothing to do") : parts.joined(separator: ", "))
     }
 }
@@ -194,48 +278,62 @@ func exportSingles(_ files: [URL], to dir: URL, masker: Masker) throws -> Int {
     return files.count
 }
 
-func renderAll(_ job: RenderJob, masker: Masker, progress: (String) -> Void = { _ in }) throws -> RenderResult {
+func renderPlan(_ plan: SheetPlan, width: Int, height: Int, output: URL, masker: Masker, backs: CardBacks,
+                progress: (String) -> Void = { _ in }) throws -> RenderResult {
+    var genericBacks: [URL: CGImage] = [:]   // the same back sits on every back page: mask it once
     var result = RenderResult()
-    let n = job.slots.count
-    let cards = job.cards
-    let kind = job.kind.rawValue
-
-    func page(_ files: [URL], _ name: String) throws {
-        let placements = try zip(files, job.slots).map { (try masker.card($0), $1) }
-        try savePNG(renderPage(width: job.pageWidth, height: job.pageHeight, placements),
-                    to: job.output.appendingPathComponent(name))
-    }
-
-    // Back page: slots mirrored horizontally for duplex; 90° slots use the 180°-flipped back.
-    if let backURL = job.back {
-        let back = try masker.card(backURL)
-        let back90 = try job.back90.map(masker.card) ?? back
-        let placements = job.slots.map { s in
-            (s.rot.truncatingRemainder(dividingBy: 180) == 90 ? back90 : back,
-             Slot(cx: Double(job.pageWidth) - s.cx, cy: s.cy, rot: s.rot))
+    for (i, page) in plan.pages.enumerated() {
+        progress("\(i + 1)/\(plan.pages.count)")
+        var placements: [(CGImage, Slot)] = []
+        for (item, slot) in page.items {
+            switch item {
+            case .image(let url):
+                placements.append((try masker.card(url), slot))
+            case .cardBack:
+                guard let url = backs.url(for: slot) else { continue }
+                if genericBacks[url] == nil { genericBacks[url] = try masker.card(url) }
+                placements.append((genericBacks[url]!, slot))
+            }
         }
-        try savePNG(renderPage(width: job.pageWidth, height: job.pageHeight, placements),
-                    to: job.output.appendingPathComponent("backpage_\(kind).png"))
-        result.backPage = true
+        try savePNG(renderPage(width: width, height: height, cardSize: masker.cardSize, placements),
+                    to: output.appendingPathComponent(page.name))
+        if page.isBack { result.backPages += 1 } else { result.pages += 1 }
     }
-
-    let fullPages = cards.count / n
-    for start in stride(from: 0, to: cards.count, by: n) {
-        let chunk = Array(cards[start..<min(start + n, cards.count)])
-        if chunk.count == n {
-            result.pages += 1
-            progress("Layout \(result.pages)/\(fullPages)")
-            try page(chunk, "layout_\(kind)_\(String(format: "%03d", result.pages)).png")
-        } else if job.remainder == .onePage {
-            try page(chunk, "layout_\(kind)_LAST.png")
-            result.lastPage = true
-        } else {
-            result.singles = try exportSingles(chunk, to: job.output.appendingPathComponent(singlesDirName), masker: masker)
-        }
-    }
-
-    if !job.doubleSided.isEmpty {
-        result.doubleSided = try exportSingles(job.doubleSided, to: job.output.appendingPathComponent(doubleSidedDirName), masker: masker)
-    }
+    result.singles = try exportSingles(plan.singles, to: output.appendingPathComponent(singlesDirName), masker: masker)
+    result.doubleSided = try exportSingles(plan.doubleSided, to: output.appendingPathComponent(doubleSidedDirName), masker: masker)
     return result
+}
+
+/// Small masked cards for the live preview, made once per image and size.
+actor PreviewCache {
+    static let shared = PreviewCache()
+    private var cards: [String: CGImage] = [:]
+
+    func card(_ url: URL, masker: Masker, height: Int) throws -> CGImage {
+        let key = "\(height) \(url.path)"
+        if let card = cards[key] { return card }
+        let card = try masker.card(url, height: height)
+        cards[key] = card
+        return card
+    }
+}
+
+/// Every planned page at `scale` of full size, for the live preview. Throws CancellationError when superseded.
+func previewPages(_ plan: SheetPlan, width: Int, height: Int, scale: Double, masker: Masker, backs: CardBacks) async throws -> [CGImage] {
+    let cardHeight = max(1, Int(Double(masker.mask.height) * scale))
+    var pages: [CGImage] = []
+    for page in plan.pages {
+        var placements: [(CGImage, Slot)] = []
+        for (item, slot) in page.items {
+            try Task.checkCancellation()
+            let url: URL?
+            switch item {
+            case .image(let u): url = u
+            case .cardBack: url = backs.url(for: slot)
+            }
+            if let url { placements.append((try await PreviewCache.shared.card(url, masker: masker, height: cardHeight), slot)) }
+        }
+        pages.append(renderPage(width: width, height: height, scale: scale, cardSize: masker.cardSize, placements))
+    }
+    return pages
 }

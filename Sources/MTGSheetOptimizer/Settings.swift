@@ -23,6 +23,8 @@ func tr(_ english: String, _ args: CVarArg...) -> String {
 }
 
 struct SettingsView: View {
+    @Environment(\.openWindow) private var openWindow
+
     var body: some View {
         @Bindable var lang = Lang.shared
         Form {
@@ -30,9 +32,12 @@ struct SettingsView: View {
                 ForEach(Language.allCases) { Text($0.name).tag($0) }
             }
             .pickerStyle(.radioGroup)
+            LabeledContent("Layout") {
+                Button(tr("Edit layout…")) { openWindow(id: "layout-editor") }
+            }
         }
         .padding(20)
-        .frame(width: 320)
+        .frame(width: 360)
     }
 }
 
@@ -42,23 +47,25 @@ let italianTranslations: [String: String] = [
     "2. Layout": "2. Impaginazione",
     "Phase": "Fase",
     "Language": "Lingua",
+    "Edit layout…": "Modifica layout…",
+    "Layout editor": "Editor del layout",
 
     // Deck phase
     "Deck list": "Lista del mazzo",
     "Search MPCFill": "Cerca su MPCFill",
     "Paste the list and press \"Search MPCFill\".": "Incolla la lista e premi \"Cerca su MPCFill\".",
     "Card size": "Grandezza delle carte",
-    "%d cards, %d double-sided": "%d carte, %d fronte-retro",
+    "Cards: %d · Double-sided: %d": "Carte: %d · Fronte-retro: %d",
     "Download and lay out": "Scarica e impagina",
     "Choose the variant": "Scegli la variante",
     "Back: %@": "Retro: %@",
-    "%@ · %d DPI · %d variants": "%@ · %d DPI · %d varianti",
+    "%@ · %d DPI · %d var.": "%@ · %d DPI · %d var.",
     "Not found": "Non trovata",
     "Print this card": "Stampa questa carta",
-    "%d variants": "%d varianti",
-    "Loading %d variants…": "Carico %d varianti…",
+    "Variants: %d": "Varianti: %d",
+    "Loading variants…": "Carico le varianti…",
     "Searching MPCFill…": "Cerco su MPCFill…",
-    "Found all %d cards.": "Trovate tutte le %d carte.",
+    "Cards found: %d.": "Carte trovate: %d.",
     "Not found: %@": "Non trovate: %@",
     "Error: %@": "Errore: %@",
     "Downloading %d/%d…": "Scarico %d/%d…",
@@ -69,44 +76,47 @@ let italianTranslations: [String: String] = [
 
     // Layout phase
     "Export back page": "Esporta retro",
-    "Save layout": "Salva layout",
-    "Load layout…": "Carica layout…",
-    "Reset slots": "Reimposta slot",
-    "Deck from MPCFill: %d cards, %d double-sided faces": "Mazzo da MPCFill: %d carte, %d facce fronte-retro",
-    "Use a folder": "Usa una cartella",
+    "Extra cards": "Carte in più",
+    "Last page with empty slots": "Ultima pagina con spazi vuoti",
+    "As singles": "Come singole",
+    "Double-sided": "Fronte-retro",
+    "Front/back pages": "Pagine fronte/retro",
     "Open output": "Apri output",
     "Choose…": "Scegli…",
+    "Search and download a deck in \"1. Deck\" first.": "Prima cerca e scarica un mazzo in \"1. Mazzo\".",
+    "Sheets: %d · Back pages: %d · Singles: %d": "Fogli: %d · Pagine di retri: %d · Singole: %d",
     "Layout or mask.png missing": "Layout o mask.png mancanti",
-    "mask.png missing or invalid.": "mask.png mancante o non valido.",
-    "%@ loaded.": "%@ caricato.",
-    "Saved %@.": "Salvato %@.",
-    "Loaded %@.": "Caricato %@.",
-    "Can't find %@.": "Non trovo %@.",
     "Choose an output folder.": "Scegli la cartella di output.",
-    "Choose an input folder.": "Scegli la cartella di input.",
-    "No valid images in the input.": "Nessuna immagine valida in input.",
     "Back page is on but back.jpg is missing.": "Retro attivo ma back.jpg non trovato.",
-    "Back page is on with 90° cards but back90.jpg is missing.": "Retro attivo con carte a 90° ma back90.jpg non trovato.",
     "Rendering…": "Render in corso…",
     "Error.": "Errore.",
-    "Incomplete last page": "Ultima pagina incompleta",
-    "The last page is missing %d cards. What do you want to do with the remaining cards?":
-        "Nell'ultima pagina mancano %d carte. Cosa vuoi fare con le carte rimanenti?",
-    "Export as singles": "Esporta singolarmente",
-    "Export page with empty slots": "Esporta pagina con spazi vuoti",
-    "Cancel": "Annulla",
-    "Cancelled.": "Annullato.",
     "Done": "Completato",
     "Open folder": "Apri cartella",
     "Close": "Chiudi",
     "Error": "Errore",
     "Can't read %@": "Impossibile leggere %@",
     "Can't write %@": "Impossibile scrivere %@",
-    "%d %@ pages": "%d layout %@",
-    "1 last page with empty slots": "1 ultima pagina con spazi vuoti",
-    "%d singles in '%@'": "%d singole in '%@'",
-    "%d cut cards in '%@'": "%d alpha in '%@'",
-    "1 %@ back page": "1 retro %@",
+    "%@ pages: %d": "Pagine %@: %d",
+    "Back pages: %d": "Pagine di retri: %d",
+    "Singles in '%@': %d": "Singole in '%@': %d",
+    "Cut cards in '%@': %d": "Alpha in '%@': %d",
     "Done: %@.": "Fatto: %@.",
     "nothing to do": "niente da fare",
+
+    // Layout editor
+    "Load layout…": "Carica layout…",
+    "Reset slots": "Reimposta slot",
+    "Wrong number of slots for %@.": "Numero di slot sbagliato per %@.",
+    "Align horizontally": "Allinea orizzontalmente",
+    "Align vertically": "Allinea verticalmente",
+    "Puts the selected cards on the same row as the first one you selected.":
+        "Mette le carte selezionate sulla stessa riga della prima che hai selezionato.",
+    "Puts the selected cards in the same column as the first one you selected.":
+        "Mette le carte selezionate nella stessa colonna della prima che hai selezionato.",
+    "Distribute horizontally": "Distribuisci orizzontalmente",
+    "Distribute vertically": "Distribuisci verticalmente",
+    "Spaces the selected cards evenly from left to right.":
+        "Distribuisce le carte selezionate a distanza uguale da sinistra a destra.",
+    "Spaces the selected cards evenly from top to bottom.":
+        "Distribuisce le carte selezionate a distanza uguale dall'alto in basso.",
 ]
