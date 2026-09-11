@@ -122,50 +122,11 @@ Sources/MTGSheetOptimizer/
   Render.swift     piano dei fogli, rifilatura, render a piena risoluzione e anteprima
   Settings.swift   impostazioni e traduzioni
 Tests/             test su lista, piano dei fogli, fronte-retro, rotazioni e 300 DPI
-spec/              contratto condiviso: regole, asset, testi, casi di prova
-windows/           app Windows in C# (Core condiviso + interfaccia WinUI)
-scripts/           generazione testi, confronto di conformità, build di sviluppo
+Resources/         mask.png, sfondi e JSON dei layout
 AppIcon.icon       icona (documento di Icon Composer)
 build.sh           compila l'app e l'icona
+scripts/           build di sviluppo
 ```
 
 MPCFill è un progetto open source ([chilli-axe/mpc-autofill](https://github.com/chilli-axe/mpc-autofill)):
 l'app usa la sua API pubblica, senza login.
-
-## Versione Windows
-
-`windows/` contiene la seconda app, in C#: `MTGSheet.Core` (piano dei fogli, rendering con SkiaSharp,
-client MPCFill) e `MTGSheet.App`, l'interfaccia WinUI 3. Il cuore è lo stesso della versione macOS, ma
-sono due codebase separate: quello che le tiene allineate è `spec/`.
-
-```bash
-dotnet build windows/src/MTGSheet.Core          # la libreria compila anche su macOS e Linux
-dotnet build windows/src/MTGSheet.App           # l'app WinUI si compila solo su Windows
-```
-
-**Stato:** la libreria e il runner di conformità sono compilati e verificati; l'app WinUI è scritta ma va
-ancora compilata e provata su una macchina Windows. Finché non succede, in `spec/features.json` le sue
-funzioni di interfaccia restano marcate `"windows": false`.
-
-## Come restano allineate le due versioni
-
-Il contratto sta in `spec/` (vedi [spec/spec.md](spec/spec.md)): geometria di stampa, regole del piano dei
-fogli, comportamento dell'API MPCFill, testi dell'interfaccia, asset condivisi e casi di prova.
-
-- **Una sola definizione.** `spec/Resources/` contiene l'unica copia di `mask.png` e dei layout, usata da
-  entrambe le build. `spec/strings.json` è l'unica copia dei testi: le tabelle Swift e C# si generano con
-  `scripts/gen-strings.py`.
-- **Un giudice automatico.** Ogni app sa girare i casi di `spec/cases/` e stampare cosa ha prodotto:
-
-  ```bash
-  swift run MTGSheetOptimizer --conformance spec --out out/macos.json
-  dotnet run --project windows/src/MTGSheet.Conformance -- spec out/windows.json
-  scripts/conformance-diff.py out/macos.json out/windows.json
-  ```
-
-  Il piano dei fogli deve coincidere esattamente; la posizione delle carte disegnate ha una tolleranza di
-  2 px, perché due motori grafici non mettono mai i pixel allo stesso modo. Oggi coincidono anche i DPI.
-- **Il debito è visibile.** `spec/features.json` elenca le funzioni e dice su quale piattaforma ci sono.
-  La CI fallisce se un'app dichiara una funzione che il registro non prevede, o viceversa.
-- **Ordine di lavoro per una feature nuova:** prima il caso in `spec/`, che rende rosse entrambe le CI,
-  poi l'implementazione su una piattaforma, poi sull'altra.

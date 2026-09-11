@@ -2,10 +2,3 @@
 .swiftpm/
 dist/
 .DS_Store
-
-# C# build output
-windows/**/bin/
-windows/**/obj/
-
-# conformance output
-out/
