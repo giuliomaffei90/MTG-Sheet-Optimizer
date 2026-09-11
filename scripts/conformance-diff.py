@@ -53,6 +53,8 @@ def main(paths):
             continue
         if norm(a[case]["plan"]) != norm(b[case]["plan"]):
             problems.append(f"{case}: sheet plans differ")
+        if a[case].get("dpi") != b[case].get("dpi"):
+            problems.append(f"{case}: saved at {a[case].get('dpi')} DPI vs {b[case].get('dpi')}")
         ga, gb = a[case].get("geometry", {}), b[case].get("geometry", {})
         for page in sorted(set(ga) | set(gb)):
             if page in ga and page in gb:

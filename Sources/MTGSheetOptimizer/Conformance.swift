@@ -1,5 +1,6 @@
 import Foundation
 import CoreGraphics
+import ImageIO
 
 /// Runs the shared cases in spec/ and prints what this implementation produced, so the Windows build can be
 /// compared against it (see spec/spec.md). Triggered by `--conformance <specDir> [--out file.json]`.
@@ -82,14 +83,18 @@ enum Conformance {
 
             if c["render"] as? Bool == true {
                 var geometry: [String: [[Int]]] = [:]
+                var firstPage: CGImage?
                 for page in plan.pages {
                     geometry[page.name] = try page.items.map { item, slot in
                         let image = try masker.card(url(id(item) == "$back" ? "back" : id(item)))
-                        return box(renderPage(width: Int(width), height: Int(height),
-                                              cardSize: masker.cardSize, [(image, slot)]))
+                        let sheet = renderPage(width: Int(width), height: Int(height),
+                                               cardSize: masker.cardSize, [(image, slot)])
+                        if firstPage == nil { firstPage = sheet }
+                        return box(sheet)
                     }
                 }
                 result["geometry"] = geometry
+                result["dpi"] = try firstPage.map(writtenDPI) ?? NSNull()
                 if let want = expected["geometry"] as? [String: [[Int]]], !want.isEmpty {
                     for (page, boxes) in want where geometry[page].map({ !close($0, boxes) }) ?? true {
                         print("✘ \(name): geometry differs on \(page)")
@@ -118,6 +123,16 @@ enum Conformance {
         }
         print(failures == 0 ? "✔ \(caseFiles.count) cases match the spec" : "✘ \(failures) mismatches")
         return failures
+    }
+
+    /// The DPI a saved page really carries, so the 300 DPI promise is machine-checked on both platforms.
+    private static func writtenDPI(_ page: CGImage) throws -> Int {
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent("conformance-\(UUID().uuidString).png")
+        try savePNG(page, to: file)
+        defer { try? FileManager.default.removeItem(at: file) }
+        let source = CGImageSourceCreateWithURL(file as CFURL, nil)
+        let properties = source.flatMap { CGImageSourceCopyPropertiesAtIndex($0, 0, nil) as? [CFString: Any] }
+        return Int(properties?[kCGImagePropertyDPIWidth] as? Double ?? 0)
     }
 
     /// Two graphics engines never place a pixel identically; 2 px is the agreed tolerance.
