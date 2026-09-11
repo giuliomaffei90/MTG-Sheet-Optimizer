@@ -129,3 +129,8 @@ scripts/           development build
 
 MPCFill is an open source project ([chilli-axe/mpc-autofill](https://github.com/chilli-axe/mpc-autofill)):
 this app uses its public API, with no login.
+
+## License
+
+[MIT](LICENSE). The licence covers this app's code only: the card images come from MPCFill's sources and
+from Wizards of the Coast, and none of them ship with the app.
