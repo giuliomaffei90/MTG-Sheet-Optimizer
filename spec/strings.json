@@ -262,5 +262,13 @@
   "Spaces the selected cards evenly from top to bottom.": {
     "en": "Spaces the selected cards evenly from top to bottom.",
     "it": "Distribuisce le carte selezionate a distanza uguale dall'alto in basso."
+  },
+  "Settings": {
+    "en": "Settings",
+    "it": "Impostazioni"
+  },
+  "The language applies to windows opened from now on.": {
+    "en": "The language applies to windows opened from now on.",
+    "it": "La lingua vale per le finestre aperte da adesso in poi."
   }
 }

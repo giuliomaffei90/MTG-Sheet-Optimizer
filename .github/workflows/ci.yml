@@ -1,0 +1,51 @@
+name: CI
+
+on: [push, pull_request]
+
+# The two apps are separate codebases, so the build checks that both still satisfy spec/: same sheet plans,
+# same drawn geometry, same interface texts. A feature that lands on one platform only shows up here.
+jobs:
+  macos:
+    name: macOS app
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - run: swift test
+      - run: swift run MTGSheetOptimizer --conformance spec --out out/macos.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: conformance-macos
+          path: out/macos.json
+
+  windows:
+    name: Windows app
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: dotnet build windows/src/MTGSheet.Core -c Release
+      - run: dotnet run --project windows/src/MTGSheet.Conformance -c Release -- spec out/windows.json
+      - name: Build the WinUI app
+        run: dotnet build windows/src/MTGSheet.App -c Release -p:Platform=x64
+      - uses: actions/upload-artifact@v4
+        with:
+          name: conformance-windows
+          path: out/windows.json
+
+  parity:
+    name: Both apps agree
+    needs: [macos, windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: out
+          merge-multiple: true
+      - name: Interface texts come from spec/strings.json
+        run: python3 scripts/check-strings.py
+      - name: Generated string tables are up to date
+        run: |
+          python3 scripts/gen-strings.py
+          git diff --exit-code
+      - name: Same plans, same geometry, features as declared
+        run: python3 scripts/conformance-diff.py out/macos.json out/windows.json

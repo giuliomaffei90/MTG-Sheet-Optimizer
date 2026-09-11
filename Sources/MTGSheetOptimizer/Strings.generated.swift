@@ -67,4 +67,6 @@ let italianTranslations: [String: String] = [
     "Distribute vertically": "Distribuisci verticalmente",
     "Spaces the selected cards evenly from left to right.": "Distribuisce le carte selezionate a distanza uguale da sinistra a destra.",
     "Spaces the selected cards evenly from top to bottom.": "Distribuisce le carte selezionate a distanza uguale dall'alto in basso.",
+    "Settings": "Impostazioni",
+    "The language applies to windows opened from now on.": "La lingua vale per le finestre aperte da adesso in poi.",
 ]
